@@ -5,6 +5,13 @@ import type { FormEvent } from "react";
 import { ArrowRight, Mail } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
 
+function siteUrl() {
+  return (
+    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ??
+    window.location.origin
+  );
+}
+
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "sending" | "sent">("idle");
@@ -20,7 +27,7 @@ export default function LoginPage() {
       const { error: authError } = await supabase.auth.signInWithOtp({
         email,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/confirm?next=/coach`
+          emailRedirectTo: `${siteUrl()}/auth/confirm?next=/coach`
         }
       });
 

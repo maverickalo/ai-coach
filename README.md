@@ -114,16 +114,18 @@ The web app reads `apps/web/.env.local`:
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
 NEXT_PUBLIC_API_URL=http://localhost:3001
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
 ```
 
 Use either `TWILIO_MESSAGING_SERVICE_SID` or `TWILIO_FROM_NUMBER`. A Messaging
 Service is preferred for production. Twilio variables can be left blank when
 using only the web MVP.
 
-In Supabase Auth, enable email magic links and add this local redirect URL:
+In Supabase Auth, enable email magic links and add these redirect URLs:
 
 ```text
 http://localhost:3000/auth/confirm
+https://coach-web-production-1ad1.up.railway.app/auth/confirm
 ```
 
 Set `COACH_OWNER_EMAIL` to the email that should be linked to Sean's seeded
