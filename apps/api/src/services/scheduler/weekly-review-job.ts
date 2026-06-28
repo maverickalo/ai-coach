@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, or } from "drizzle-orm";
 import type { Database } from "../../db/index.js";
 import {
   coachEvents,
@@ -11,6 +11,7 @@ import { startOfPreviousWeek } from "../../utils/dates.js";
 import type { MessagingService } from "../messaging/messaging-service.js";
 import type { OpenAiClient } from "../openai/openai.client.js";
 import type { WorkoutEngine } from "../workout/workout-engine.js";
+import type { OwnerLookup } from "./daily-workout-job.js";
 
 export class WeeklyReviewJob {
   constructor(
@@ -20,19 +21,24 @@ export class WeeklyReviewJob {
     private readonly messaging: MessagingService
   ) {}
 
-  async run(ownerPhoneNumber: string) {
+  async run(owner: OwnerLookup) {
+    const filters = [
+      owner.phoneNumber ? eq(users.phoneNumber, owner.phoneNumber) : undefined,
+      owner.email ? eq(users.email, owner.email) : undefined
+    ].filter((filter) => filter !== undefined);
+
+    if (filters.length === 0) {
+      throw new Error("Coach owner is not configured");
+    }
+
     const [user] = await this.db
       .select()
       .from(users)
-      .where(eq(users.phoneNumber, ownerPhoneNumber))
+      .where(filters.length === 1 ? filters[0] : or(...filters))
       .limit(1);
 
     if (!user) {
       throw new Error("Coach owner user was not found. Run pnpm db:seed.");
-    }
-
-    if (!user.phoneNumber) {
-      throw new Error("Coach owner phone number is not configured");
     }
 
     const { weekStart, weekEnd } = startOfPreviousWeek(
@@ -99,6 +105,14 @@ export class WeeklyReviewJob {
     });
 
     const body = `${generated.summary} Next week: ${generated.recommendations.join(" ")}`;
+
+    if (!user.phoneNumber) {
+      return {
+        sent: false,
+        reason: "Coach owner phone number is not configured",
+        review: generated
+      };
+    }
 
     if (!user.smsOptedIn) {
       return {

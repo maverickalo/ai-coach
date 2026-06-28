@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, or } from "drizzle-orm";
 import type { Database } from "../../db/index.js";
 import {
   conversations,
@@ -8,6 +8,11 @@ import {
 import type { MessagingService } from "../messaging/messaging-service.js";
 import type { WorkoutEngine } from "../workout/workout-engine.js";
 
+export interface OwnerLookup {
+  phoneNumber?: string;
+  email?: string;
+}
+
 export class DailyWorkoutJob {
   constructor(
     private readonly db: Database,
@@ -15,26 +20,24 @@ export class DailyWorkoutJob {
     private readonly messaging: MessagingService
   ) {}
 
-  async run(ownerPhoneNumber: string) {
+  async run(owner: OwnerLookup) {
+    const filters = [
+      owner.phoneNumber ? eq(users.phoneNumber, owner.phoneNumber) : undefined,
+      owner.email ? eq(users.email, owner.email) : undefined
+    ].filter((filter) => filter !== undefined);
+
+    if (filters.length === 0) {
+      throw new Error("Coach owner is not configured");
+    }
+
     const [user] = await this.db
       .select()
       .from(users)
-      .where(eq(users.phoneNumber, ownerPhoneNumber))
+      .where(filters.length === 1 ? filters[0] : or(...filters))
       .limit(1);
 
     if (!user) {
       throw new Error("Coach owner user was not found. Run pnpm db:seed.");
-    }
-
-    if (!user.phoneNumber) {
-      throw new Error("Coach owner phone number is not configured");
-    }
-
-    if (!user.smsOptedIn) {
-      return {
-        sent: false,
-        reason: "User is not opted in"
-      };
     }
 
     const workout = await this.workoutEngine.getOrCreateWorkoutForDate(
@@ -45,6 +48,25 @@ export class DailyWorkoutJob {
       user.displayName,
       workout
     );
+
+    if (!user.phoneNumber) {
+      return {
+        sent: false,
+        reason: "Coach owner phone number is not configured",
+        workoutId: workout.id,
+        body
+      };
+    }
+
+    if (!user.smsOptedIn) {
+      return {
+        sent: false,
+        reason: "User is not opted in",
+        workoutId: workout.id,
+        body
+      };
+    }
+
     const sent = await this.messaging.send({
       to: user.phoneNumber,
       body
