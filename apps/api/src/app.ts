@@ -14,13 +14,22 @@ import { CoachContextBuilder } from "./services/coach/coach-context-builder.js";
 import { CoachEngine } from "./services/coach/coach-engine.js";
 import { ConversationEngine } from "./services/conversation/conversation-engine.js";
 import { MemoryEngine } from "./services/memory/memory-engine.js";
-import { MessagingService } from "./services/messaging/messaging-service.js";
+import {
+  MessagingService,
+  type MessagingProvider
+} from "./services/messaging/messaging-service.js";
 import { OpenAiClient } from "./services/openai/openai.client.js";
 import { DailyWorkoutJob } from "./services/scheduler/daily-workout-job.js";
 import { WeeklyReviewJob } from "./services/scheduler/weekly-review-job.js";
 import { WorkoutEngine } from "./services/workout/workout-engine.js";
 import { WebPortalService } from "./services/web/web-portal-service.js";
 import { loggerOptions } from "./utils/logger.js";
+
+class UnconfiguredMessagingProvider implements MessagingProvider {
+  async send(): Promise<never> {
+    throw new Error("Messaging provider is not configured");
+  }
+}
 
 export async function buildApp() {
   const app = Fastify({ logger: loggerOptions });
@@ -77,29 +86,34 @@ export async function buildApp() {
     );
   }
 
-  if (
+  const messagingProvider =
     env.TWILIO_ACCOUNT_SID &&
     env.TWILIO_AUTH_TOKEN &&
     (env.TWILIO_MESSAGING_SERVICE_SID || env.TWILIO_FROM_NUMBER)
-  ) {
-    const messaging = new MessagingService(new TwilioMessagingProvider());
-    const dailyWorkout = new DailyWorkoutJob(
-      database.db,
-      workoutEngine,
-      messaging
+      ? new TwilioMessagingProvider()
+      : new UnconfiguredMessagingProvider();
+
+  if (messagingProvider instanceof UnconfiguredMessagingProvider) {
+    app.log.warn(
+      "Twilio is not configured; scheduled SMS delivery is unavailable"
     );
-    const weeklyReview = new WeeklyReviewJob(
-      database.db,
-      workoutEngine,
-      openai,
-      messaging
-    );
-    await app.register(async (scope) =>
-      jobsRoutes(scope, { dailyWorkout, weeklyReview })
-    );
-  } else {
-    app.log.warn("Twilio is not configured; scheduled SMS jobs are unavailable");
   }
+
+  const messaging = new MessagingService(messagingProvider);
+  const dailyWorkout = new DailyWorkoutJob(
+    database.db,
+    workoutEngine,
+    messaging
+  );
+  const weeklyReview = new WeeklyReviewJob(
+    database.db,
+    workoutEngine,
+    openai,
+    messaging
+  );
+  await app.register(async (scope) =>
+    jobsRoutes(scope, { dailyWorkout, weeklyReview })
+  );
 
   app.addHook("onClose", async () => {
     await database.close();
