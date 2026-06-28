@@ -460,8 +460,12 @@ async function seed() {
   if (!env.DATABASE_URL) {
     throw new Error("DATABASE_URL is required to seed the database");
   }
-  if (!env.COACH_OWNER_PHONE_NUMBER) {
-    throw new Error("COACH_OWNER_PHONE_NUMBER is required to seed Sean");
+  const ownerEmail = env.COACH_OWNER_EMAIL?.toLowerCase();
+  const ownerPhoneNumber = env.COACH_OWNER_PHONE_NUMBER ?? null;
+  if (!ownerEmail && !ownerPhoneNumber) {
+    throw new Error(
+      "COACH_OWNER_EMAIL or COACH_OWNER_PHONE_NUMBER is required to seed Sean"
+    );
   }
 
   const database = createDatabase(env.DATABASE_URL);
@@ -470,16 +474,17 @@ async function seed() {
     const [user] = await database.db
       .insert(users)
       .values({
-        phoneNumber: env.COACH_OWNER_PHONE_NUMBER,
-        email: env.COACH_OWNER_EMAIL?.toLowerCase(),
+        phoneNumber: ownerPhoneNumber,
+        email: ownerEmail,
         displayName: "Sean",
         timezone: env.COACH_TIMEZONE
       })
       .onConflictDoUpdate({
-        target: users.phoneNumber,
+        target: ownerEmail ? users.email : users.phoneNumber,
         set: {
           displayName: "Sean",
-          email: env.COACH_OWNER_EMAIL?.toLowerCase(),
+          email: ownerEmail,
+          phoneNumber: ownerPhoneNumber,
           timezone: env.COACH_TIMEZONE,
           updatedAt: new Date()
         }
@@ -664,7 +669,9 @@ async function seed() {
         );
     }
 
-    console.log(`Seeded Coach AI data for ${user.displayName} (${user.phoneNumber})`);
+    console.log(
+      `Seeded Coach AI data for ${user.displayName} (${user.email ?? user.phoneNumber})`
+    );
   } finally {
     await database.close();
   }
