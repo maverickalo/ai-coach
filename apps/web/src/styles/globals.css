@@ -1,15 +1,19 @@
 :root {
   --bg: #050607;
-  --surface: #111318;
-  --surface-raised: #191c22;
-  --border: #2a2f38;
+  --surface: #12151b;
+  --surface-raised: #1b2028;
+  --surface-hot: #202838;
+  --border: #303744;
   --text: #f5f7fa;
-  --muted: #9ca3af;
-  --accent: #3b82f6;
-  --accent-strong: #2563eb;
+  --muted: #b2bac7;
+  --accent: #39ff88;
+  --accent-strong: #16c967;
+  --accent-blue: #3b82f6;
   --danger: #ef4444;
   --success: #22c55e;
   --shell-width: 680px;
+  --shadow-card: 0 12px 34px rgb(0 0 0 / 32%);
+  --focus-ring: 0 0 0 3px rgb(57 255 136 / 18%);
 }
 
 * {
@@ -27,9 +31,10 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Nunito, Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
-  line-height: 1.5;
+  font-size: 17px;
+  line-height: 1.58;
   letter-spacing: 0;
   -webkit-font-smoothing: antialiased;
 }
@@ -86,13 +91,13 @@ a {
   z-index: 20;
   top: 0;
   display: flex;
-  min-height: 68px;
+  min-height: 76px;
   align-items: center;
   justify-content: space-between;
   padding:
-    calc(9px + env(safe-area-inset-top))
+    calc(11px + env(safe-area-inset-top))
     18px
-    9px;
+    11px;
   background: color-mix(in srgb, var(--bg) 94%, transparent);
   border-bottom: 1px solid var(--border);
   backdrop-filter: blur(18px);
@@ -100,7 +105,7 @@ a {
 
 .app-header h1 {
   margin: 0;
-  font-size: 1.35rem;
+  font-size: 1.62rem;
   line-height: 1.15;
   letter-spacing: 0;
 }
@@ -108,7 +113,8 @@ a {
 .app-header p {
   margin: 4px 0 0;
   color: var(--muted);
-  font-size: 0.78rem;
+  font-size: 0.9rem;
+  font-weight: 650;
 }
 
 .coach-avatar,
@@ -118,19 +124,20 @@ a {
   height: 38px;
   flex: 0 0 38px;
   place-items: center;
-  background: var(--accent);
+  background: linear-gradient(135deg, var(--accent), var(--accent-blue));
   border-radius: 50%;
   color: white;
   font-weight: 800;
+  box-shadow: 0 0 24px rgb(57 255 136 / 22%);
 }
 
 .app-main {
-  min-height: calc(100dvh - 68px);
-  padding: 12px 14px calc(88px + env(safe-area-inset-bottom));
+  min-height: calc(100dvh - 76px);
+  padding: 14px 14px calc(94px + env(safe-area-inset-bottom));
 }
 
 .coach-shell .app-main {
-  padding-bottom: calc(158px + env(safe-area-inset-bottom));
+  padding-bottom: calc(170px + env(safe-area-inset-bottom));
 }
 
 .bottom-nav {
@@ -156,14 +163,14 @@ a {
 .bottom-nav a {
   display: flex;
   min-width: 0;
-  min-height: 54px;
+  min-height: 58px;
   align-items: center;
   justify-content: center;
   gap: 3px;
   border-radius: 8px;
   color: var(--muted);
-  font-size: 0.68rem;
-  font-weight: 650;
+  font-size: 0.78rem;
+  font-weight: 760;
   text-decoration: none;
   flex-direction: column;
 }
@@ -174,10 +181,13 @@ a {
 
 .workout-card {
   min-height: 0;
-  padding: 13px;
-  background: var(--surface);
+  padding: 16px;
+  background:
+    radial-gradient(circle at top right, rgb(57 255 136 / 13%), transparent 34%),
+    var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
+  box-shadow: var(--shadow-card);
 }
 
 .workout-card-loading,
@@ -199,35 +209,38 @@ a {
 .eyebrow {
   margin: 0 0 5px;
   color: var(--accent);
-  font-size: 0.72rem;
+  font-size: 0.82rem;
   font-weight: 760;
   text-transform: uppercase;
 }
 
 .workout-card h2 {
   margin: 0;
-  font-size: 1.08rem;
-  line-height: 1.25;
+  font-size: 1.62rem;
+  line-height: 1.12;
   letter-spacing: 0;
 }
 
-.status-dot {
-  width: 9px;
-  height: 9px;
-  margin-top: 7px;
-  flex: 0 0 9px;
-  background: var(--success);
-  border-radius: 50%;
-  box-shadow: 0 0 0 4px rgb(34 197 94 / 10%);
+.workout-badge {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  place-items: center;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  border-radius: 8px;
+  color: var(--accent);
 }
 
 .workout-meta {
   display: flex;
   flex-wrap: wrap;
   gap: 8px 14px;
-  margin-top: 8px;
+  margin-top: 12px;
   color: var(--muted);
-  font-size: 0.76rem;
+  font-size: 0.95rem;
+  font-weight: 650;
 }
 
 .workout-meta span {
@@ -246,49 +259,55 @@ a {
 
 .exercise-list {
   display: grid;
-  gap: 4px;
-  margin: 10px 0;
+  gap: 8px;
+  margin: 14px 0 2px;
 }
 
 .exercise-list p {
   display: flex;
   min-width: 0;
+  min-height: 44px;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
   margin: 0;
+  padding: 9px 10px;
+  background: rgb(255 255 255 / 4%);
+  border: 1px solid rgb(255 255 255 / 6%);
+  border-radius: 8px;
   color: var(--muted);
-  font-size: 0.82rem;
+  font-size: 0.98rem;
 }
 
 .exercise-list strong {
   overflow: hidden;
   color: var(--text);
-  font-weight: 620;
+  font-weight: 780;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .exercise-list span {
   flex: 0 0 auto;
+  color: var(--accent);
+  font-weight: 850;
 }
 
-.start-workout-button,
 .primary-button {
   display: flex;
   width: 100%;
-  min-height: 46px;
+  min-height: 50px;
   align-items: center;
   justify-content: center;
   gap: 8px;
   padding: 0 16px;
-  background: var(--accent);
+  background: var(--accent-blue);
   border: 0;
   border-radius: 8px;
   color: white;
   font-weight: 720;
 }
 
-.start-workout-button:active,
 .primary-button:active {
   background: var(--accent-strong);
 }
@@ -304,9 +323,9 @@ a {
 
 .quick-actions {
   display: flex;
-  margin: 12px -14px 2px;
-  padding: 0 14px 8px;
-  gap: 8px;
+  margin: 14px -14px 2px;
+  padding: 0 14px 10px;
+  gap: 10px;
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -316,36 +335,38 @@ a {
 }
 
 .quick-actions button {
-  min-height: 42px;
+  min-height: 48px;
   flex: 0 0 auto;
-  padding: 0 14px;
-  background: var(--surface);
+  padding: 0 16px;
+  background: var(--surface-raised);
   border: 1px solid var(--border);
   border-radius: 999px;
   color: var(--text);
-  font-size: 0.78rem;
-  font-weight: 620;
+  font-size: 0.95rem;
+  font-weight: 780;
 }
 
 .quick-actions button:active {
-  background: var(--surface-raised);
-  border-color: #3c4552;
+  background: var(--surface-hot);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  transform: translateY(1px);
 }
 
 .chat-thread {
   display: flex;
   min-height: 260px;
-  padding: 10px 0 8px;
-  gap: 8px;
+  padding: 12px 0 8px;
+  gap: 10px;
   flex-direction: column;
 }
 
 .chat-message {
   width: fit-content;
   max-width: 84%;
-  padding: 10px 13px;
-  border-radius: 16px;
-  font-size: 0.9rem;
+  padding: 12px 14px;
+  border-radius: 18px;
+  font-size: 1.04rem;
+  line-height: 1.48;
   overflow-wrap: anywhere;
 }
 
@@ -359,13 +380,15 @@ a {
   background: var(--surface-raised);
   border-bottom-left-radius: 5px;
   color: var(--text);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 22%);
 }
 
 .chat-message.user {
   align-self: flex-end;
-  background: var(--accent-strong);
+  background: var(--accent-blue);
   border-bottom-right-radius: 5px;
   color: white;
+  font-weight: 650;
 }
 
 .chat-message.pending {
@@ -404,43 +427,52 @@ a {
   bottom: calc(72px + env(safe-area-inset-bottom));
   left: max(10px, calc((100vw - var(--shell-width)) / 2 + 10px));
   display: grid;
-  min-height: 56px;
+  min-height: 62px;
   align-items: end;
   padding: 7px 7px 7px 14px;
   background: var(--surface-raised);
   border: 1px solid var(--border);
-  border-radius: 24px;
+  border-radius: 26px;
   box-shadow: 0 8px 30px rgb(0 0 0 / 35%);
-  grid-template-columns: minmax(0, 1fr) 42px;
+  grid-template-columns: minmax(0, 1fr) 46px;
   gap: 8px;
 }
 
 .chat-composer textarea {
   width: 100%;
   max-height: 116px;
-  min-height: 40px;
-  padding: 9px 0 7px;
+  min-height: 44px;
+  padding: 10px 0 8px;
   resize: none;
   background: transparent;
   border: 0;
   outline: 0;
   color: var(--text);
-  line-height: 1.35;
+  font-size: 1.02rem;
+  line-height: 1.42;
 }
 
 .chat-composer textarea::placeholder {
-  color: #7f8793;
+  color: #9099a8;
 }
 
 .chat-composer button {
   display: grid;
-  width: 42px;
-  height: 42px;
+  width: 46px;
+  height: 46px;
   place-items: center;
   background: var(--accent);
   border: 0;
   border-radius: 50%;
-  color: white;
+  color: #041007;
+  box-shadow: 0 0 22px rgb(57 255 136 / 18%);
+}
+
+.chat-composer button:focus-visible,
+.quick-actions button:focus-visible,
+.primary-button:focus-visible {
+  outline: 0;
+  box-shadow: var(--focus-ring);
 }
 
 .history-list {

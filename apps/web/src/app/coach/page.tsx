@@ -15,7 +15,7 @@ import type {
 const greeting: ChatMessageType = {
   id: "coach-greeting",
   role: "coach",
-  body: "Morning. I have today's session ready. Tell me when you start, or send any adjustment you need.",
+  body: "Morning. Today's session is ready. Send what you did, what you skipped, or what you need adjusted.",
   createdAt: new Date().toISOString()
 };
 
@@ -128,7 +128,6 @@ export default function CoachPage() {
       <TodayWorkoutCard
         workout={workout}
         loading={loadingWorkout}
-        onStart={() => send("I'm starting today's workout.")}
       />
 
       <QuickActions onSelect={send} disabled={sending} />

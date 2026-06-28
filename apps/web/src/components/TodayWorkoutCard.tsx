@@ -1,16 +1,14 @@
-import { Clock3, Play, Target } from "lucide-react";
+import { Clock3, Dumbbell, Target } from "lucide-react";
 import type { TodayWorkout } from "@/lib/types";
 
 interface TodayWorkoutCardProps {
   workout: TodayWorkout | null;
   loading: boolean;
-  onStart: () => void;
 }
 
 export function TodayWorkoutCard({
   workout,
-  loading,
-  onStart
+  loading
 }: TodayWorkoutCardProps) {
   if (loading) {
     return <div className="workout-card workout-card-loading" aria-label="Loading workout" />;
@@ -34,10 +32,12 @@ export function TodayWorkoutCard({
     <article className="workout-card">
       <header className="workout-card-header">
         <div>
-          <p className="card-kicker">Today&apos;s workout</p>
+          <p className="card-kicker">Today&apos;s session</p>
           <h2>{workout.name}</h2>
         </div>
-        <span className="status-dot" title={workout.status} />
+        <span className="workout-badge" title={workout.status}>
+          <Dumbbell size={18} />
+        </span>
       </header>
 
       <div className="workout-meta">
@@ -67,11 +67,6 @@ export function TodayWorkoutCard({
           </p>
         ))}
       </div>
-
-      <button className="start-workout-button" type="button" onClick={onStart}>
-        <Play size={18} fill="currentColor" />
-        Start workout
-      </button>
     </article>
   );
 }
