@@ -2,17 +2,19 @@
   "name": "coach-ai",
   "version": "0.1.0",
   "private": true,
-  "description": "SMS-first AI personal training coach",
+  "description": "Mobile-first AI personal training coach with optional SMS",
   "packageManager": "pnpm@10.6.0",
   "engines": {
     "node": ">=22"
   },
   "scripts": {
-    "build": "pnpm --filter @coach-ai/api build",
-    "dev": "pnpm --filter @coach-ai/api dev",
+    "build": "pnpm --filter @coach-ai/api build && pnpm --filter @coach-ai/web build",
+    "dev": "pnpm --parallel --filter @coach-ai/api --filter @coach-ai/web dev",
+    "dev:api": "pnpm --filter @coach-ai/api dev",
+    "dev:web": "pnpm --filter @coach-ai/web dev",
     "start": "pnpm --filter @coach-ai/api start",
-    "lint": "pnpm --filter @coach-ai/api lint",
-    "typecheck": "pnpm --filter @coach-ai/api typecheck",
+    "lint": "pnpm --filter @coach-ai/api lint && pnpm --filter @coach-ai/web lint",
+    "typecheck": "pnpm --filter @coach-ai/api typecheck && pnpm --filter @coach-ai/web typecheck",
     "test": "pnpm --filter @coach-ai/api test",
     "db:generate": "pnpm --filter @coach-ai/api db:generate",
     "db:migrate": "pnpm --filter @coach-ai/api db:migrate",
@@ -21,6 +23,7 @@
     "db:studio": "pnpm --filter @coach-ai/api db:studio"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "typescript": "^6.0.3"
   }
 }

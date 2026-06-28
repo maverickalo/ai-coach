@@ -8,6 +8,13 @@
       "when": 1782606102667,
       "tag": "0000_groovy_redwing",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1782607563540,
+      "tag": "0001_acoustic_firebrand",
+      "breakpoints": true
     }
   ]
 }

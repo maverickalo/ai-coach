@@ -1,3 +1,4 @@
+import cors from "@fastify/cors";
 import formbody from "@fastify/formbody";
 import Fastify from "fastify";
 import { TwilioMessagingProvider } from "./adapters/twilio/twilio.client.js";
@@ -7,6 +8,8 @@ import { devRoutes } from "./routes/dev.routes.js";
 import { healthRoutes } from "./routes/health.routes.js";
 import { jobsRoutes } from "./routes/jobs.routes.js";
 import { twilioRoutes } from "./routes/twilio.routes.js";
+import { webRoutes } from "./routes/web.routes.js";
+import { SupabaseAuthService } from "./services/auth/supabase-auth.js";
 import { CoachContextBuilder } from "./services/coach/coach-context-builder.js";
 import { CoachEngine } from "./services/coach/coach-engine.js";
 import { ConversationEngine } from "./services/conversation/conversation-engine.js";
@@ -16,10 +19,16 @@ import { OpenAiClient } from "./services/openai/openai.client.js";
 import { DailyWorkoutJob } from "./services/scheduler/daily-workout-job.js";
 import { WeeklyReviewJob } from "./services/scheduler/weekly-review-job.js";
 import { WorkoutEngine } from "./services/workout/workout-engine.js";
+import { WebPortalService } from "./services/web/web-portal-service.js";
 import { loggerOptions } from "./utils/logger.js";
 
 export async function buildApp() {
   const app = Fastify({ logger: loggerOptions });
+  await app.register(cors, {
+    origin: env.WEB_APP_URL,
+    methods: ["GET", "POST", "PUT", "OPTIONS"],
+    allowedHeaders: ["authorization", "content-type"]
+  });
   await app.register(formbody);
   await app.register(healthRoutes);
 
@@ -51,6 +60,22 @@ export async function buildApp() {
 
   await app.register(async (scope) => twilioRoutes(scope, conversationEngine));
   await app.register(async (scope) => devRoutes(scope, conversationEngine));
+
+  if (env.SUPABASE_URL && env.SUPABASE_PUBLISHABLE_KEY) {
+    const auth = new SupabaseAuthService(database.db);
+    const portal = new WebPortalService(database.db, workoutEngine);
+    await app.register(async (scope) =>
+      webRoutes(scope, {
+        auth,
+        portal,
+        conversation: conversationEngine
+      })
+    );
+  } else {
+    app.log.warn(
+      "Supabase Auth is not configured; authenticated web routes are unavailable"
+    );
+  }
 
   if (
     env.TWILIO_ACCOUNT_SID &&

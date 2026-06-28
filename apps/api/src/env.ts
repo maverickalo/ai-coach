@@ -5,8 +5,10 @@ const optionalSecret = z.string().trim().min(1).optional();
 
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
-  PORT: z.coerce.number().int().positive().default(3000),
+  PORT: z.coerce.number().int().positive().default(3001),
   DATABASE_URL: optionalSecret,
+  SUPABASE_URL: z.string().url().optional(),
+  SUPABASE_PUBLISHABLE_KEY: optionalSecret,
   OPENAI_API_KEY: optionalSecret,
   OPENAI_MODEL: z.string().trim().min(1).default("gpt-5.3"),
   TWILIO_ACCOUNT_SID: optionalSecret,
@@ -14,7 +16,9 @@ const envSchema = z.object({
   TWILIO_MESSAGING_SERVICE_SID: optionalSecret,
   TWILIO_FROM_NUMBER: optionalSecret,
   COACH_OWNER_PHONE_NUMBER: optionalSecret,
+  COACH_OWNER_EMAIL: z.string().email().optional(),
   APP_BASE_URL: z.string().url().optional(),
+  WEB_APP_URL: z.string().url().default("http://localhost:3000"),
   COACH_TIMEZONE: z.string().trim().min(1).default("America/Los_Angeles"),
   DAILY_WORKOUT_SEND_TIME: z
     .string()

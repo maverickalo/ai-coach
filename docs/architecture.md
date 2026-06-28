@@ -3,8 +3,8 @@
 ## System flow
 
 ```text
-Inbound SMS
-  -> Twilio signature validation and normalization
+Web message or inbound SMS
+  -> Supabase bearer auth or Twilio signature validation
   -> Conversation Engine
   -> deterministic START / STOP / HELP handling
   -> user and conversation lookup
@@ -16,7 +16,7 @@ Inbound SMS
   -> Workout / Memory / Progression services
   -> Drizzle / Supabase
   -> persisted outbound message
-  -> TwiML response
+  -> JSON response or TwiML response
 ```
 
 Scheduled messages use the same domain services:
@@ -28,6 +28,10 @@ Railway scheduler
   -> Messaging Service
   -> Twilio provider
 ```
+
+The Next.js web app is the primary MVP interface. It authenticates with
+Supabase, displays API data, and submits messages. It contains no coaching,
+workout, memory, or progression decisions.
 
 ## Module responsibilities
 
@@ -41,11 +45,31 @@ Files: `src/adapters/twilio`
 - Sends outbound SMS through a Messaging Service SID or phone number.
 - Contains no coaching, workout, progression, or memory decisions.
 
+### Web portal
+
+Files: `apps/web`
+
+- Uses Supabase email magic-link authentication.
+- Protects `/coach`, `/workouts`, and `/settings`.
+- Renders today's workout, recent messages, workout history, and profile data.
+- Optimistically renders user messages and loading state.
+- Sends all coaching requests to `POST /chat`.
+- Contains no domain or coaching logic.
+
+### Supabase auth adapter
+
+File: `src/services/auth/supabase-auth.ts`
+
+- Verifies bearer tokens through Supabase Auth.
+- Links the configured owner email to the seeded user.
+- Creates a user and profile for new authenticated identities.
+- Keeps authentication concerns out of the Coach Engine.
+
 ### Conversation Engine
 
 File: `src/services/conversation/conversation-engine.ts`
 
-- Owns the inbound application workflow.
+- Owns the inbound web and SMS application workflow.
 - Finds or creates users and conversations.
 - Stores inbound and outbound messages.
 - Handles webhook idempotency.
@@ -135,8 +159,8 @@ Files: `src/services/scheduler`
 
 | Table | Responsibility |
 | --- | --- |
-| `users` | Phone identity, timezone, and SMS consent state |
-| `user_profiles` | Goal, style, diet, and injury notes |
+| `users` | Supabase identity, optional phone identity, timezone, and SMS consent |
+| `user_profiles` | Goal, style, diet, equipment notes, and injury notes |
 | `equipment` | Per-user available equipment |
 | `exercises` | Exercise catalog, instructions, equipment, substitutions |
 | `workout_plans` | User-owned active plans |
@@ -178,6 +202,19 @@ Returns:
 - Development only.
 - Uses the complete conversation workflow without Twilio.
 - Persists messages and actions.
+
+### Authenticated web routes
+
+- `GET /today`
+- `GET /messages`
+- `POST /chat`
+- `GET /workouts`
+- `GET /profile`
+- `PUT /profile`
+
+These routes require a Supabase access token in the `Authorization` header.
+`POST /chat` passes the message through the same Conversation Engine used by
+Twilio.
 
 ### Job routes
 
@@ -223,8 +260,8 @@ The model proposes or formats. Application services validate and persist.
 5. Store unit preference explicitly; V1 preserves numeric weights without
    conversion.
 6. Add a conversation-state table for unresolved follow-up questions.
-7. Add row-level security policies if the future Next.js frontend accesses
-   Supabase directly. The API currently uses a server connection string.
+7. Keep training data behind the API. The Next.js app accesses Supabase
+   directly only for authentication.
 8. Add integration tests against a disposable Postgres instance.
 9. Add an exercise alias table rather than relying on the V1 parser map.
 10. Add human escalation and emergency-language policies before broader public

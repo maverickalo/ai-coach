@@ -21,7 +21,9 @@ export const users = pgTable(
   "users",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    phoneNumber: text("phone_number").notNull(),
+    authUserId: uuid("auth_user_id"),
+    email: text("email"),
+    phoneNumber: text("phone_number"),
     displayName: text("display_name"),
     timezone: text("timezone").default("America/Los_Angeles").notNull(),
     smsOptedIn: boolean("sms_opted_in").default(false).notNull(),
@@ -29,7 +31,11 @@ export const users = pgTable(
     smsOptedOutAt: timestamp("sms_opted_out_at", { withTimezone: true }),
     ...timestamps
   },
-  (table) => [uniqueIndex("users_phone_number_unique").on(table.phoneNumber)]
+  (table) => [
+    uniqueIndex("users_auth_user_id_unique").on(table.authUserId),
+    uniqueIndex("users_email_unique").on(table.email),
+    uniqueIndex("users_phone_number_unique").on(table.phoneNumber)
+  ]
 );
 
 export const userProfiles = pgTable(
@@ -42,6 +48,7 @@ export const userProfiles = pgTable(
     primaryGoal: text("primary_goal"),
     trainingStyle: text("training_style"),
     dietaryNotes: text("dietary_notes"),
+    equipmentNotes: text("equipment_notes"),
     injuryNotes: text("injury_notes"),
     ...timestamps
   },

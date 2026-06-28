@@ -1,0 +1,740 @@
+:root {
+  --bg: #050607;
+  --surface: #111318;
+  --surface-raised: #191c22;
+  --border: #2a2f38;
+  --text: #f5f7fa;
+  --muted: #9ca3af;
+  --accent: #3b82f6;
+  --accent-strong: #2563eb;
+  --danger: #ef4444;
+  --success: #22c55e;
+  --shell-width: 680px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+  background: var(--bg);
+}
+
+body {
+  min-height: 100%;
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  line-height: 1.5;
+  letter-spacing: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+textarea,
+select {
+  color: inherit;
+  font: inherit;
+  letter-spacing: 0;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+a {
+  color: inherit;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.app-shell {
+  width: min(100%, var(--shell-width));
+  min-height: 100dvh;
+  margin: 0 auto;
+  background: var(--bg);
+  border-inline: 1px solid transparent;
+}
+
+.app-header {
+  position: sticky;
+  z-index: 20;
+  top: 0;
+  display: flex;
+  min-height: 68px;
+  align-items: center;
+  justify-content: space-between;
+  padding:
+    calc(9px + env(safe-area-inset-top))
+    18px
+    9px;
+  background: color-mix(in srgb, var(--bg) 94%, transparent);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(18px);
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: 1.35rem;
+  line-height: 1.15;
+  letter-spacing: 0;
+}
+
+.app-header p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.coach-avatar,
+.coach-mark {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  place-items: center;
+  background: var(--accent);
+  border-radius: 50%;
+  color: white;
+  font-weight: 800;
+}
+
+.app-main {
+  min-height: calc(100dvh - 68px);
+  padding: 12px 14px calc(88px + env(safe-area-inset-bottom));
+}
+
+.coach-shell .app-main {
+  padding-bottom: calc(158px + env(safe-area-inset-bottom));
+}
+
+.bottom-nav {
+  position: fixed;
+  z-index: 30;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
+  border-top: 1px solid var(--border);
+  backdrop-filter: blur(18px);
+}
+
+.bottom-nav-inner {
+  display: grid;
+  width: min(100%, var(--shell-width));
+  min-height: 66px;
+  margin: 0 auto;
+  padding: 6px 10px calc(6px + env(safe-area-inset-bottom));
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.bottom-nav a {
+  display: flex;
+  min-width: 0;
+  min-height: 54px;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 650;
+  text-decoration: none;
+  flex-direction: column;
+}
+
+.bottom-nav a.active {
+  color: var(--accent);
+}
+
+.workout-card {
+  min-height: 0;
+  padding: 13px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.workout-card-loading,
+.history-skeleton,
+.settings-skeleton {
+  background: var(--surface-raised);
+  animation: loading-surface 1.2s ease-in-out infinite alternate;
+}
+
+.workout-card-header,
+.history-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.card-kicker,
+.eyebrow {
+  margin: 0 0 5px;
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 760;
+  text-transform: uppercase;
+}
+
+.workout-card h2 {
+  margin: 0;
+  font-size: 1.08rem;
+  line-height: 1.25;
+  letter-spacing: 0;
+}
+
+.status-dot {
+  width: 9px;
+  height: 9px;
+  margin-top: 7px;
+  flex: 0 0 9px;
+  background: var(--success);
+  border-radius: 50%;
+  box-shadow: 0 0 0 4px rgb(34 197 94 / 10%);
+}
+
+.workout-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.workout-meta span {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+}
+
+.workout-meta span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.exercise-list {
+  display: grid;
+  gap: 4px;
+  margin: 10px 0;
+}
+
+.exercise-list p {
+  display: flex;
+  min-width: 0;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.exercise-list strong {
+  overflow: hidden;
+  color: var(--text);
+  font-weight: 620;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.exercise-list span {
+  flex: 0 0 auto;
+}
+
+.start-workout-button,
+.primary-button {
+  display: flex;
+  width: 100%;
+  min-height: 46px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 16px;
+  background: var(--accent);
+  border: 0;
+  border-radius: 8px;
+  color: white;
+  font-weight: 720;
+}
+
+.start-workout-button:active,
+.primary-button:active {
+  background: var(--accent-strong);
+}
+
+.empty-workout {
+  min-height: 130px;
+}
+
+.empty-workout p:last-child {
+  margin-bottom: 0;
+  color: var(--muted);
+}
+
+.quick-actions {
+  display: flex;
+  margin: 12px -14px 2px;
+  padding: 0 14px 8px;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.quick-actions::-webkit-scrollbar {
+  display: none;
+}
+
+.quick-actions button {
+  min-height: 42px;
+  flex: 0 0 auto;
+  padding: 0 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text);
+  font-size: 0.78rem;
+  font-weight: 620;
+}
+
+.quick-actions button:active {
+  background: var(--surface-raised);
+  border-color: #3c4552;
+}
+
+.chat-thread {
+  display: flex;
+  min-height: 260px;
+  padding: 10px 0 8px;
+  gap: 8px;
+  flex-direction: column;
+}
+
+.chat-message {
+  width: fit-content;
+  max-width: 84%;
+  padding: 10px 13px;
+  border-radius: 16px;
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.chat-message p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.chat-message.coach {
+  align-self: flex-start;
+  background: var(--surface-raised);
+  border-bottom-left-radius: 5px;
+  color: var(--text);
+}
+
+.chat-message.user {
+  align-self: flex-end;
+  background: var(--accent-strong);
+  border-bottom-right-radius: 5px;
+  color: white;
+}
+
+.chat-message.pending {
+  opacity: 0.7;
+}
+
+.loading-message {
+  display: flex;
+  min-width: 54px;
+  min-height: 39px;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.loading-message span {
+  width: 5px;
+  height: 5px;
+  background: var(--muted);
+  border-radius: 50%;
+  animation: message-dot 1.1s ease-in-out infinite;
+}
+
+.loading-message span:nth-child(2) {
+  animation-delay: 0.14s;
+}
+
+.loading-message span:nth-child(3) {
+  animation-delay: 0.28s;
+}
+
+.chat-composer {
+  position: fixed;
+  z-index: 25;
+  right: max(10px, calc((100vw - var(--shell-width)) / 2 + 10px));
+  bottom: calc(72px + env(safe-area-inset-bottom));
+  left: max(10px, calc((100vw - var(--shell-width)) / 2 + 10px));
+  display: grid;
+  min-height: 56px;
+  align-items: end;
+  padding: 7px 7px 7px 14px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  box-shadow: 0 8px 30px rgb(0 0 0 / 35%);
+  grid-template-columns: minmax(0, 1fr) 42px;
+  gap: 8px;
+}
+
+.chat-composer textarea {
+  width: 100%;
+  max-height: 116px;
+  min-height: 40px;
+  padding: 9px 0 7px;
+  resize: none;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  color: var(--text);
+  line-height: 1.35;
+}
+
+.chat-composer textarea::placeholder {
+  color: #7f8793;
+}
+
+.chat-composer button {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  background: var(--accent);
+  border: 0;
+  border-radius: 50%;
+  color: white;
+}
+
+.history-list {
+  display: grid;
+  gap: 10px;
+}
+
+.history-card {
+  position: relative;
+  display: grid;
+  min-height: 116px;
+  padding: 14px 34px 14px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: 11px;
+}
+
+.history-icon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  background: var(--surface-raised);
+  border-radius: 8px;
+  color: var(--accent);
+}
+
+.history-content {
+  min-width: 0;
+}
+
+.history-title-row p,
+.history-meta,
+.history-summary {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
+.history-title-row h2 {
+  margin: 3px 0 0;
+  font-size: 0.96rem;
+  line-height: 1.3;
+  letter-spacing: 0;
+}
+
+.workout-status {
+  padding: 3px 7px;
+  background: var(--surface-raised);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.64rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.workout-status.completed {
+  color: var(--success);
+}
+
+.workout-status.partially_completed {
+  color: #fbbf24;
+}
+
+.workout-status.skipped {
+  color: var(--danger);
+}
+
+.history-meta {
+  margin-top: 9px;
+}
+
+.history-summary {
+  display: -webkit-box;
+  margin-top: 5px;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.history-chevron {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  color: #5f6875;
+  transform: translateY(-50%);
+}
+
+.history-skeleton {
+  height: 116px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.page-message {
+  margin: 20vh auto 0;
+  color: var(--muted);
+  text-align: center;
+}
+
+.page-message.error,
+.form-error {
+  color: #fca5a5;
+}
+
+.settings-form {
+  display: grid;
+  gap: 15px;
+}
+
+.settings-form label,
+.login-form {
+  display: grid;
+  gap: 7px;
+}
+
+.settings-form label > span,
+.login-form label {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 650;
+}
+
+.settings-form input,
+.settings-form textarea,
+.settings-form select,
+.login-form input {
+  width: 100%;
+  min-height: 48px;
+  padding: 11px 12px;
+  resize: vertical;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  outline: none;
+}
+
+.settings-form textarea {
+  min-height: 88px;
+}
+
+.settings-form input:focus,
+.settings-form textarea:focus,
+.settings-form select:focus,
+.login-form input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgb(59 130 246 / 15%);
+}
+
+.settings-save {
+  margin-top: 4px;
+}
+
+.save-message {
+  margin: -4px 0 0;
+  color: var(--success);
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+.sign-out-button {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  margin-top: 12px;
+  gap: 8px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+}
+
+.settings-skeleton {
+  height: 520px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.login-page {
+  display: grid;
+  min-height: 100dvh;
+  padding:
+    calc(32px + env(safe-area-inset-top))
+    20px
+    calc(32px + env(safe-area-inset-bottom));
+  place-items: center;
+}
+
+.login-panel {
+  width: min(100%, 390px);
+}
+
+.login-panel .coach-mark {
+  width: 50px;
+  height: 50px;
+  margin-bottom: 26px;
+  font-size: 1.2rem;
+}
+
+.login-panel h1 {
+  margin: 0;
+  font-size: 2rem;
+  line-height: 1.15;
+  letter-spacing: 0;
+}
+
+.login-copy {
+  margin: 8px 0 28px;
+  color: var(--muted);
+}
+
+.login-form {
+  gap: 12px;
+}
+
+.login-form .primary-button {
+  margin-top: 3px;
+}
+
+.form-error {
+  margin: 0;
+  font-size: 0.78rem;
+}
+
+.login-success {
+  display: grid;
+  min-height: 146px;
+  padding: 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  gap: 8px;
+}
+
+.login-success svg {
+  color: var(--accent);
+}
+
+.login-success strong {
+  color: var(--text);
+}
+
+@keyframes message-dot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes loading-surface {
+  from {
+    opacity: 0.55;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (min-width: 720px) {
+  body {
+    background: #090b0e;
+  }
+
+  .app-shell {
+    border-color: var(--border);
+    box-shadow: 0 0 50px rgb(0 0 0 / 38%);
+  }
+
+  .app-main {
+    padding-inline: 18px;
+  }
+
+  .quick-actions {
+    margin-inline: -18px;
+    padding-inline: 18px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

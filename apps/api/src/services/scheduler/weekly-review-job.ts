@@ -31,6 +31,10 @@ export class WeeklyReviewJob {
       throw new Error("Coach owner user was not found. Run pnpm db:seed.");
     }
 
+    if (!user.phoneNumber) {
+      throw new Error("Coach owner phone number is not configured");
+    }
+
     const { weekStart, weekEnd } = startOfPreviousWeek(
       new Date(),
       user.timezone

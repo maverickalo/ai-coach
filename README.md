@@ -1,20 +1,23 @@
 # Coach AI
 
-Coach AI is an SMS-first HYROX and strength training coach. It sends daily
-workouts, accepts natural-language training logs, follows up on missing work,
+Coach AI is a mobile-first HYROX and strength training coach. The primary MVP
+is a dark web app that shows today's workout and supports natural-language
+coaching conversations. It accepts training logs, follows up on missing work,
 tracks preferences and pain reports, recommends progression, and produces a
 weekly review.
 
 The interaction is designed to feel like texting a coach rather than filling
-out a workout tracker.
+out a workout tracker. Twilio SMS remains an optional transport that can be
+enabled after A2P approval.
 
 ## Tech stack
 
 - Node.js 22 and TypeScript
+- Next.js and React
 - Fastify
 - Drizzle ORM
-- Supabase Postgres
-- Twilio SMS
+- Supabase Postgres and Auth
+- Twilio SMS as an optional channel
 - OpenAI Responses API with structured outputs
 - Railway
 - pnpm workspaces
@@ -25,6 +28,7 @@ out a workout tracker.
 ```text
 apps/
   api/                  Fastify API, services, schema, migrations, and seed
+  web/                  Next.js mobile web portal and Supabase Auth client
   site/                 Canonical static Privacy and Terms site
 docs/
   architecture.md       Service boundaries, schema, routes, and design decisions
@@ -42,20 +46,19 @@ for Twilio A2P remain stable.
 ## Architecture
 
 ```text
-Twilio SMS
-  -> Twilio adapter
+Next.js web app or Twilio SMS
+  -> authenticated web route or Twilio adapter
   -> Conversation Engine
   -> Coach Engine
   -> Workout / Memory / Progression Engines
   -> Drizzle / Supabase
   -> OpenAI Responses API
-  -> Twilio adapter
-  -> SMS reply
+  -> web response or Twilio adapter
 ```
 
-Twilio is transport only. The webhook normalizes and validates the request,
-then delegates to the Conversation Engine. The Coach Engine returns a reply and
-structured actions; it never writes to the database directly.
+The web and Twilio layers are transports only. They authenticate or validate
+requests and delegate to the same Conversation Engine. The Coach Engine returns
+a reply and structured actions; it never writes to the database directly.
 
 See [docs/architecture.md](docs/architecture.md) for the complete design.
 
@@ -65,9 +68,9 @@ Prerequisites:
 
 - Node.js 22+
 - pnpm through Corepack
-- Supabase Postgres project
+- Supabase project with Postgres and Auth
 - OpenAI API key
-- Twilio account and Messaging Service or phone number
+- Twilio account and Messaging Service or phone number when enabling SMS
 
 Install dependencies:
 
@@ -80,12 +83,16 @@ Create local configuration:
 
 ```bash
 cp apps/api/.env.example apps/api/.env
+cp apps/web/.env.example apps/web/.env.local
 ```
 
-The API package reads `apps/api/.env`. Required for full operation:
+The API package reads `apps/api/.env`:
 
 ```dotenv
+PORT=3001
 DATABASE_URL=
+SUPABASE_URL=
+SUPABASE_PUBLISHABLE_KEY=
 OPENAI_API_KEY=
 OPENAI_MODEL=gpt-5.3
 TWILIO_ACCOUNT_SID=
@@ -93,14 +100,34 @@ TWILIO_AUTH_TOKEN=
 TWILIO_MESSAGING_SERVICE_SID=
 TWILIO_FROM_NUMBER=
 COACH_OWNER_PHONE_NUMBER=
-APP_BASE_URL=
+COACH_OWNER_EMAIL=
+APP_BASE_URL=http://localhost:3001
+WEB_APP_URL=http://localhost:3000
 COACH_TIMEZONE=America/Los_Angeles
 DAILY_WORKOUT_SEND_TIME=06:30
 INTERNAL_JOB_SECRET=
 ```
 
+The web app reads `apps/web/.env.local`:
+
+```dotenv
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
+NEXT_PUBLIC_API_URL=http://localhost:3001
+```
+
 Use either `TWILIO_MESSAGING_SERVICE_SID` or `TWILIO_FROM_NUMBER`. A Messaging
-Service is preferred for production.
+Service is preferred for production. Twilio variables can be left blank when
+using only the web MVP.
+
+In Supabase Auth, enable email magic links and add this local redirect URL:
+
+```text
+http://localhost:3000/auth/confirm
+```
+
+Set `COACH_OWNER_EMAIL` to the email that should be linked to Sean's seeded
+profile. Other authenticated emails create separate multi-user profiles.
 
 ## Database
 
@@ -118,8 +145,8 @@ weekly HYROX strength plan:
 pnpm db:seed
 ```
 
-`COACH_OWNER_PHONE_NUMBER` must be set before seeding. The seed is idempotent
-and may be rerun.
+Set at least one of `COACH_OWNER_PHONE_NUMBER` or `COACH_OWNER_EMAIL` before
+seeding. The seed is idempotent and may be rerun.
 
 ## Run locally
 
@@ -127,10 +154,15 @@ and may be rerun.
 pnpm dev
 ```
 
+This starts:
+
+- Web app: `http://localhost:3000`
+- API: `http://localhost:3001`
+
 Health check:
 
 ```bash
-curl http://localhost:3000/health
+curl http://localhost:3001/health
 ```
 
 Expected response:
@@ -146,7 +178,7 @@ Without `DATABASE_URL`, the server intentionally exposes only `/health`.
 The development route does not call Twilio:
 
 ```bash
-curl -X POST http://localhost:3000/dev/simulate-message \
+curl -X POST http://localhost:3001/dev/simulate-message \
   -H 'content-type: application/json' \
   -d '{
     "phoneNumber": "+12065551234",
@@ -162,6 +194,12 @@ the Twilio webhook. It is disabled when `NODE_ENV=production`.
 | Method | Route | Purpose |
 | --- | --- | --- |
 | `GET` | `/health` | Railway health check |
+| `GET` | `/today` | Authenticated current workout |
+| `GET` | `/messages` | Authenticated conversation history |
+| `POST` | `/chat` | Authenticated web coaching message |
+| `GET` | `/workouts` | Authenticated workout history |
+| `GET` | `/profile` | Authenticated profile |
+| `PUT` | `/profile` | Authenticated profile update |
 | `POST` | `/twilio/inbound` | Validated Twilio SMS webhook |
 | `POST` | `/dev/simulate-message` | Local message simulation |
 | `POST` | `/jobs/send-daily-workout` | Create and send today's workout |
@@ -184,17 +222,28 @@ selection, fallback workout parsing, pain detection, and missing exercises.
 
 ## Railway deployment
 
-1. Create a Railway project from this GitHub repository.
-2. Add the environment variables from `.env.example`.
+Create two Railway services from this repository.
+
+API service:
+
+1. Use the root `railway.json`.
+2. Add the API environment variables from `apps/api/.env.example`.
 3. Use the Supabase transaction-pooler connection string for `DATABASE_URL`
-   when appropriate for the deployment.
-4. Deploy. `railway.json` installs, builds, starts the API, and checks `/health`.
-5. Run `pnpm db:migrate` and `pnpm db:seed` against the production environment.
-6. Set `APP_BASE_URL` to the public Railway HTTPS URL.
-7. Configure the Twilio inbound webhook as:
+   when appropriate.
+4. Run `pnpm db:migrate` and `pnpm db:seed` against production.
+5. Set `APP_BASE_URL` to the public API HTTPS URL.
+6. Set `WEB_APP_URL` to the public web HTTPS URL.
+7. Configure the optional Twilio inbound webhook as:
    `https://YOUR-RAILWAY-DOMAIN/twilio/inbound`
-8. Invoke the job routes from a scheduler with `x-job-secret`, or create
+8. Invoke job routes from a scheduler with `x-job-secret`, or create
    dedicated Railway cron services that call the same job classes.
+
+Web service:
+
+1. Set the build command to `corepack enable && pnpm install --frozen-lockfile && pnpm --filter @coach-ai/web build`.
+2. Set the start command to `pnpm --filter @coach-ai/web start`.
+3. Add the three public variables from `apps/web/.env.example`.
+4. Add `https://YOUR-WEB-DOMAIN/auth/confirm` to Supabase Auth redirect URLs.
 
 ## GitHub Pages
 
@@ -223,5 +272,5 @@ legal URLs, and production checklist.
   one-rep max, fatigue models, or periodization.
 - Natural-language parsing falls back to regex during OpenAI outages.
 - Railway job triggering still needs to be configured in the Railway project.
-- A real Supabase database and live Twilio credentials are required for the
-  end-to-end SMS acceptance test.
+- A real Supabase project is required for the authenticated web acceptance
+  test. Live Twilio credentials are only required for the optional SMS path.

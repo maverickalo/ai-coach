@@ -13,7 +13,7 @@ export type CoachIntent =
 
 export interface User {
   id: string;
-  phoneNumber: string;
+  phoneNumber: string | null;
   displayName: string | null;
   timezone: string;
 }
@@ -22,6 +22,7 @@ export interface UserProfile {
   primaryGoal: string | null;
   trainingStyle: string | null;
   dietaryNotes: string | null;
+  equipmentNotes: string | null;
   injuryNotes: string | null;
 }
 
@@ -49,6 +50,7 @@ export interface CurrentWorkout {
   id: string;
   name: string;
   focus: string | null;
+  estimatedMinutes: number | null;
   scheduledDate: string;
   status: string;
   exercises: PrescribedExercise[];

@@ -11,6 +11,27 @@ Status: scaffolded
 - `/health`
 - Railway configuration
 
+## Mobile Web Portal MVP
+
+Status: implemented; requires Supabase environment configuration
+
+- Next.js and React mobile-first web app
+- dark-only interface with iPhone safe-area support
+- Supabase email magic-link authentication
+- protected coach, workout history, and settings routes
+- today's workout card and natural-language chat
+- optimistic messages, loading state, and quick actions
+- authenticated API routes that reuse the Conversation Engine
+- Twilio remains available as an optional later channel
+
+Exit test:
+
+```bash
+pnpm dev
+```
+
+Open `http://localhost:3000`, sign in, and send a message from `/coach`.
+
 ## Milestone 2: Data model and seed
 
 Status: scaffolded; requires a live Supabase execution
@@ -147,4 +168,5 @@ Before onboarding additional users:
 8. Add model evaluations for parsing accuracy, missing-exercise behavior, and
    pain safety.
 9. Add monitoring for Twilio delivery failures and OpenAI errors.
-10. Add Next.js only after the SMS workflow is stable.
+10. Add browser-level authenticated tests against a dedicated Supabase test
+    project.

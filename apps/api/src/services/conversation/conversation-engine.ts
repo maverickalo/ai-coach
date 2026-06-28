@@ -68,11 +68,9 @@ export class ConversationEngine {
     }
 
     const user = await this.findOrCreateUser(message.from);
-    const conversationId = await this.findOrCreateConversation(user.id);
-
-    await this.db.insert(messages).values({
-      conversationId,
-      direction: "inbound",
+    const result = await this.processMessage({
+      userId: user.id,
+      channel: "sms",
       body: message.body,
       metadata: {
         messageSid: message.messageSid,
@@ -81,38 +79,84 @@ export class ConversationEngine {
       }
     });
 
-    const deterministicIntent = classifyDeterministicIntent(message.body);
+    await this.db.insert(processedWebhooks).values({
+      provider: "twilio",
+      externalId: message.messageSid
+    });
+
+    return result;
+  }
+
+  async handleWebMessage(userId: string, body: string): Promise<CoachResult> {
+    return this.processMessage({
+      userId,
+      channel: "web",
+      body,
+      metadata: {
+        requestId: crypto.randomUUID()
+      }
+    });
+  }
+
+  async simulate(phoneNumber: string, body: string): Promise<CoachResult> {
+    return this.handleInbound({
+      messageSid: `dev-${crypto.randomUUID()}`,
+      from: phoneNumber,
+      to: "dev",
+      body
+    });
+  }
+
+  private async processMessage(input: {
+    userId: string;
+    channel: "sms" | "web";
+    body: string;
+    metadata: Record<string, unknown>;
+  }): Promise<CoachResult> {
+    const conversationId = await this.findOrCreateConversation(
+      input.userId,
+      input.channel
+    );
+
+    await this.db.insert(messages).values({
+      conversationId,
+      direction: "inbound",
+      body: input.body,
+      metadata: input.metadata
+    });
+
+    const deterministicIntent = classifyDeterministicIntent(input.body);
     let result: CoachResult;
 
     if (deterministicIntent) {
       result = await this.handleDeterministicIntent(
-        user.id,
+        input.userId,
         deterministicIntent
       );
     } else {
-      const context = await this.contextBuilder.build(user.id);
-      const intent = await classifyIntent(message.body, this.openai);
+      const context = await this.contextBuilder.build(input.userId);
+      const intent = await classifyIntent(input.body, this.openai);
       const shouldParse =
         intent === "log_workout" ||
         intent === "report_pain" ||
         intent === "request_substitution";
       const parsedWorkout = shouldParse
         ? await parseWorkoutLog(
-            message.body,
+            input.body,
             context.currentWorkout,
             this.openai.configured ? this.openai : undefined
           )
         : null;
 
       result = await this.coachEngine.respond({
-        message: message.body,
+        message: input.body,
         intent,
         context,
         parsedWorkout
       });
 
       await this.applyActions(
-        user.id,
+        input.userId,
         context.currentWorkout?.id ?? null,
         result.actions
       );
@@ -147,21 +191,7 @@ export class ConversationEngine {
       }
     });
 
-    await this.db.insert(processedWebhooks).values({
-      provider: "twilio",
-      externalId: message.messageSid
-    });
-
     return result;
-  }
-
-  async simulate(phoneNumber: string, body: string): Promise<CoachResult> {
-    return this.handleInbound({
-      messageSid: `dev-${crypto.randomUUID()}`,
-      from: phoneNumber,
-      to: "dev",
-      body
-    });
   }
 
   private async findOrCreateUser(phoneNumber: string) {
@@ -186,14 +216,17 @@ export class ConversationEngine {
     return created;
   }
 
-  private async findOrCreateConversation(userId: string): Promise<string> {
+  private async findOrCreateConversation(
+    userId: string,
+    channel: "sms" | "web"
+  ): Promise<string> {
     const [existing] = await this.db
       .select()
       .from(conversations)
       .where(
         and(
           eq(conversations.userId, userId),
-          eq(conversations.channel, "sms")
+          eq(conversations.channel, channel)
         )
       )
       .orderBy(asc(conversations.createdAt))
@@ -205,7 +238,7 @@ export class ConversationEngine {
 
     const [created] = await this.db
       .insert(conversations)
-      .values({ userId, channel: "sms" })
+      .values({ userId, channel })
       .returning();
 
     if (!created) {

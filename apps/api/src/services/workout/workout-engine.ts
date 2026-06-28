@@ -88,6 +88,7 @@ export class WorkoutEngine {
         id: workouts.id,
         name: workoutTemplates.name,
         focus: workoutTemplates.focus,
+        estimatedMinutes: workoutTemplates.estimatedMinutes,
         scheduledDate: workouts.scheduledDate,
         status: workouts.status,
         templateId: workouts.templateId
@@ -134,6 +135,7 @@ export class WorkoutEngine {
       id: row.id,
       name: row.name ?? "Workout",
       focus: row.focus,
+      estimatedMinutes: row.estimatedMinutes,
       scheduledDate: row.scheduledDate,
       status: row.status,
       exercises: prescribed.map((item) => ({

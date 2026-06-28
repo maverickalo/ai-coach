@@ -471,6 +471,7 @@ async function seed() {
       .insert(users)
       .values({
         phoneNumber: env.COACH_OWNER_PHONE_NUMBER,
+        email: env.COACH_OWNER_EMAIL?.toLowerCase(),
         displayName: "Sean",
         timezone: env.COACH_TIMEZONE
       })
@@ -478,6 +479,7 @@ async function seed() {
         target: users.phoneNumber,
         set: {
           displayName: "Sean",
+          email: env.COACH_OWNER_EMAIL?.toLowerCase(),
           timezone: env.COACH_TIMEZONE,
           updatedAt: new Date()
         }
@@ -496,6 +498,8 @@ async function seed() {
         trainingStyle:
           "Running is managed separately. Strength workouts should be about 60 minutes.",
         dietaryNotes: "Vegetarian",
+        equipmentNotes:
+          "Rep Aries rack, dumbbells, barbells, landmine, conditioning equipment, cables, pull-up bar, bench, and recovery tools.",
         injuryNotes: null
       })
       .onConflictDoUpdate({
@@ -505,6 +509,8 @@ async function seed() {
           trainingStyle:
             "Running is managed separately. Strength workouts should be about 60 minutes.",
           dietaryNotes: "Vegetarian",
+          equipmentNotes:
+            "Rep Aries rack, dumbbells, barbells, landmine, conditioning equipment, cables, pull-up bar, bench, and recovery tools.",
           updatedAt: new Date()
         }
       });

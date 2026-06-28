@@ -1,4 +1,4 @@
-import { and, asc, desc, eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import type { Database } from "../../db/index.js";
 import {
   conversations,
@@ -35,31 +35,21 @@ export class CoachContextBuilder {
       .where(eq(userProfiles.userId, userId))
       .limit(1);
 
-    const [conversation] = await this.db
-      .select()
-      .from(conversations)
-      .where(
-        and(
-          eq(conversations.userId, userId),
-          eq(conversations.channel, "sms")
-        )
+    const recentMessages = await this.db
+      .select({
+        direction: messages.direction,
+        body: messages.body,
+        intent: messages.intent,
+        createdAt: messages.createdAt
+      })
+      .from(messages)
+      .innerJoin(
+        conversations,
+        eq(messages.conversationId, conversations.id)
       )
-      .orderBy(asc(conversations.createdAt))
-      .limit(1);
-
-    const recentMessages = conversation
-      ? await this.db
-          .select({
-            direction: messages.direction,
-            body: messages.body,
-            intent: messages.intent,
-            createdAt: messages.createdAt
-          })
-          .from(messages)
-          .where(eq(messages.conversationId, conversation.id))
-          .orderBy(desc(messages.createdAt))
-          .limit(12)
-      : [];
+      .where(eq(conversations.userId, userId))
+      .orderBy(desc(messages.createdAt))
+      .limit(12);
 
     return {
       user: {
@@ -73,6 +63,7 @@ export class CoachContextBuilder {
             primaryGoal: profile.primaryGoal,
             trainingStyle: profile.trainingStyle,
             dietaryNotes: profile.dietaryNotes,
+            equipmentNotes: profile.equipmentNotes,
             injuryNotes: profile.injuryNotes
           }
         : null,
