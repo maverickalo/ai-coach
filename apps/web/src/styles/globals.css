@@ -287,10 +287,36 @@ a {
   white-space: nowrap;
 }
 
-.exercise-list span {
+.exercise-prescription {
+  display: inline-flex;
   flex: 0 0 auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.exercise-prescription > span {
   color: var(--accent);
   font-weight: 850;
+}
+
+.exercise-prescription a {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  gap: 4px;
+  padding: 0 9px;
+  background: color-mix(in srgb, var(--accent-blue) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-blue) 32%, var(--border));
+  border-radius: 999px;
+  color: #cfe0ff;
+  font-size: 0.82rem;
+  font-weight: 850;
+  text-decoration: none;
+}
+
+.exercise-prescription a:focus-visible {
+  outline: 0;
+  box-shadow: var(--focus-ring);
 }
 
 .primary-button {

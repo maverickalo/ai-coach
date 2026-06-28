@@ -98,6 +98,17 @@ export class ConversationEngine {
     });
   }
 
+  async handleSlackMessage(userId: string, body: string): Promise<CoachResult> {
+    return this.processMessage({
+      userId,
+      channel: "slack",
+      body,
+      metadata: {
+        requestId: crypto.randomUUID()
+      }
+    });
+  }
+
   async simulate(phoneNumber: string, body: string): Promise<CoachResult> {
     return this.handleInbound({
       messageSid: `dev-${crypto.randomUUID()}`,
@@ -109,7 +120,7 @@ export class ConversationEngine {
 
   private async processMessage(input: {
     userId: string;
-    channel: "sms" | "web";
+    channel: "sms" | "web" | "slack";
     body: string;
     metadata: Record<string, unknown>;
   }): Promise<CoachResult> {
@@ -218,7 +229,7 @@ export class ConversationEngine {
 
   private async findOrCreateConversation(
     userId: string,
-    channel: "sms" | "web"
+    channel: "sms" | "web" | "slack"
   ): Promise<string> {
     const [existing] = await this.db
       .select()

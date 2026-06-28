@@ -16,6 +16,8 @@ export interface TodayWorkout {
       id: string;
       name: string;
       category: string | null;
+      instructions: string | null;
+      demoUrl: string;
     };
   }>;
 }

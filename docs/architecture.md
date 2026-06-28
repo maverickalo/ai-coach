@@ -4,7 +4,7 @@
 
 ```text
 Web message or inbound SMS
-  -> Supabase bearer auth or Twilio signature validation
+  -> Supabase bearer auth, Slack signature validation, or Twilio signature validation
   -> Conversation Engine
   -> deterministic START / STOP / HELP handling
   -> user and conversation lookup
@@ -43,6 +43,18 @@ Files: `src/adapters/twilio`
 - Converts Twilio form fields into an internal message.
 - Creates TwiML responses.
 - Sends outbound SMS through a Messaging Service SID or phone number.
+- Contains no coaching, workout, progression, or memory decisions.
+
+### Slack adapter
+
+Files: `src/adapters/slack`, `src/routes/slack.routes.ts`
+
+- Validates Slack Events API requests with the app signing secret.
+- Handles Slack URL verification challenges.
+- Routes personal Slack messages into the Conversation Engine.
+- Sends replies through Slack `chat.postMessage`.
+- Uses the same workout, memory, progression, and exercise demo context as the
+  web and SMS channels.
 - Contains no coaching, workout, progression, or memory decisions.
 
 ### Web portal
@@ -196,6 +208,14 @@ Returns:
 - Verifies `X-Twilio-Signature` in production.
 - Requires the exact public `APP_BASE_URL` for correct signature construction.
 - Returns a TwiML `<Message>` response.
+
+### `POST /slack/events`
+
+- Accepts Slack Events API requests.
+- Verifies `X-Slack-Signature` and `X-Slack-Request-Timestamp`.
+- Returns URL verification challenges for Slack app setup.
+- Ignores bot/subtype events to avoid reply loops.
+- Optionally restricts access to `SLACK_ALLOWED_USER_ID`.
 
 ### `POST /dev/simulate-message`
 

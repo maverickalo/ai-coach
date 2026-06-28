@@ -16,6 +16,7 @@ import type {
   RecentWorkoutSummary
 } from "../../types/domain.js";
 import { dateInTimeZone, dayOfWeekInTimeZone } from "../../utils/dates.js";
+import { exerciseDemoUrl } from "./exercise-resources.js";
 
 export class WorkoutEngine {
   constructor(private readonly db: Database) {}
@@ -152,7 +153,8 @@ export class WorkoutEngine {
           primaryMuscles: item.primaryMuscles,
           equipment: item.equipment,
           instructions: item.instructions,
-          commonSubstitutions: item.commonSubstitutions
+          commonSubstitutions: item.commonSubstitutions,
+          demoUrl: exerciseDemoUrl(item.exerciseName)
         }
       }))
     };

@@ -1,4 +1,4 @@
-import { Clock3, Dumbbell, Target } from "lucide-react";
+import { Clock3, Dumbbell, ExternalLink, Target } from "lucide-react";
 import type { TodayWorkout } from "@/lib/types";
 
 interface TodayWorkoutCardProps {
@@ -59,10 +59,21 @@ export function TodayWorkoutCard({
         {mainExercises.map((item) => (
           <p key={item.templateExerciseId}>
             <strong>{item.exercise.name}</strong>
-            <span>
-              {[item.prescribedSets, item.prescribedReps]
-                .filter(Boolean)
-                .join(" × ")}
+            <span className="exercise-prescription">
+              <span>
+                {[item.prescribedSets, item.prescribedReps]
+                  .filter(Boolean)
+                  .join(" × ")}
+              </span>
+              <a
+                href={item.exercise.demoUrl}
+                target="_blank"
+                rel="noreferrer"
+                aria-label={`Open demo for ${item.exercise.name}`}
+              >
+                Demo
+                <ExternalLink size={13} />
+              </a>
             </span>
           </p>
         ))}

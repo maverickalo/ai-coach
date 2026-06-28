@@ -99,6 +99,9 @@ TWILIO_ACCOUNT_SID=
 TWILIO_AUTH_TOKEN=
 TWILIO_MESSAGING_SERVICE_SID=
 TWILIO_FROM_NUMBER=
+SLACK_SIGNING_SECRET=
+SLACK_BOT_TOKEN=
+SLACK_ALLOWED_USER_ID=
 COACH_OWNER_PHONE_NUMBER=
 COACH_OWNER_EMAIL=
 APP_BASE_URL=http://localhost:3001
@@ -203,12 +206,27 @@ the Twilio webhook. It is disabled when `NODE_ENV=production`.
 | `GET` | `/profile` | Authenticated profile |
 | `PUT` | `/profile` | Authenticated profile update |
 | `POST` | `/twilio/inbound` | Validated Twilio SMS webhook |
+| `POST` | `/slack/events` | Validated Slack Events API endpoint |
 | `POST` | `/dev/simulate-message` | Local message simulation |
 | `POST` | `/jobs/send-daily-workout` | Create and send today's workout |
 | `POST` | `/jobs/send-weekly-review` | Generate and send last week's review |
 
 In production, job routes require the `x-job-secret` header matching
 `INTERNAL_JOB_SECRET`.
+
+## Personal Slack setup
+
+Create a Slack app for your workspace, add the `chat:write` bot scope, install
+it, and set the Events API request URL to:
+
+```text
+https://coach-api-production-57a6.up.railway.app/slack/events
+```
+
+Subscribe the bot to message events you want to support, such as direct
+messages. Set `SLACK_SIGNING_SECRET` and `SLACK_BOT_TOKEN` on Railway. Set
+`SLACK_ALLOWED_USER_ID` to your Slack user ID to keep the personal bot locked
+to you.
 
 ## Quality commands
 

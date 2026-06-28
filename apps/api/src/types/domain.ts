@@ -34,6 +34,7 @@ export interface Exercise {
   equipment: string[];
   instructions: string | null;
   commonSubstitutions: string[];
+  demoUrl: string;
 }
 
 export interface PrescribedExercise {

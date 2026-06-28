@@ -7,6 +7,7 @@ import { env } from "./env.js";
 import { devRoutes } from "./routes/dev.routes.js";
 import { healthRoutes } from "./routes/health.routes.js";
 import { jobsRoutes } from "./routes/jobs.routes.js";
+import { slackRoutes } from "./routes/slack.routes.js";
 import { twilioRoutes } from "./routes/twilio.routes.js";
 import { webRoutes } from "./routes/web.routes.js";
 import { SupabaseAuthService } from "./services/auth/supabase-auth.js";
@@ -33,6 +34,20 @@ class UnconfiguredMessagingProvider implements MessagingProvider {
 
 export async function buildApp() {
   const app = Fastify({ logger: loggerOptions });
+  app.addContentTypeParser(
+    "application/json",
+    { parseAs: "buffer" },
+    (request, body, done) => {
+      const rawBody = body.toString("utf8");
+      (request as typeof request & { rawBody: string }).rawBody = rawBody;
+      try {
+        done(null, rawBody ? JSON.parse(rawBody) : {});
+      } catch (error) {
+        done(error instanceof Error ? error : new Error("Invalid JSON"));
+      }
+    }
+  );
+
   await app.register(cors, {
     origin: env.WEB_APP_URL,
     methods: ["GET", "POST", "PUT", "OPTIONS"],
@@ -68,6 +83,12 @@ export async function buildApp() {
   );
 
   await app.register(async (scope) => twilioRoutes(scope, conversationEngine));
+  await app.register(async (scope) =>
+    slackRoutes(scope, {
+      db: database.db,
+      conversation: conversationEngine
+    })
+  );
   await app.register(async (scope) => devRoutes(scope, conversationEngine));
 
   if (env.SUPABASE_URL && env.SUPABASE_PUBLISHABLE_KEY) {

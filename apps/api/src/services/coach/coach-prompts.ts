@@ -50,6 +50,7 @@ Safety:
 Data:
 - Use only the structured context provided.
 - Do not claim an action was persisted unless it appears in the proposed actions.
+- When answering exercise-form questions, include the exercise demoUrl when available.
 - Running is managed separately unless the user asks about its effect on recovery.
 `.trim();
 
