@@ -1,0 +1,45 @@
+import type { FastifyInstance, FastifyRequest } from "fastify";
+import { env } from "../env.js";
+import type { DailyWorkoutJob } from "../services/scheduler/daily-workout-job.js";
+import type { WeeklyReviewJob } from "../services/scheduler/weekly-review-job.js";
+
+function isAuthorized(request: FastifyRequest): boolean {
+  if (env.NODE_ENV !== "production") {
+    return true;
+  }
+
+  return Boolean(
+    env.INTERNAL_JOB_SECRET &&
+      request.headers["x-job-secret"] === env.INTERNAL_JOB_SECRET
+  );
+}
+
+export async function jobsRoutes(
+  app: FastifyInstance,
+  jobs: {
+    dailyWorkout: DailyWorkoutJob;
+    weeklyReview: WeeklyReviewJob;
+  }
+) {
+  app.post("/jobs/send-daily-workout", async (request, reply) => {
+    if (!isAuthorized(request)) {
+      return reply.code(401).send({ error: "Unauthorized" });
+    }
+    if (!env.COACH_OWNER_PHONE_NUMBER) {
+      return reply.code(503).send({ error: "Owner phone is not configured" });
+    }
+
+    return jobs.dailyWorkout.run(env.COACH_OWNER_PHONE_NUMBER);
+  });
+
+  app.post("/jobs/send-weekly-review", async (request, reply) => {
+    if (!isAuthorized(request)) {
+      return reply.code(401).send({ error: "Unauthorized" });
+    }
+    if (!env.COACH_OWNER_PHONE_NUMBER) {
+      return reply.code(503).send({ error: "Owner phone is not configured" });
+    }
+
+    return jobs.weeklyReview.run(env.COACH_OWNER_PHONE_NUMBER);
+  });
+}

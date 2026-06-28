@@ -1,0 +1,26 @@
+{
+  "name": "coach-ai",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SMS-first AI personal training coach",
+  "packageManager": "pnpm@10.6.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "pnpm --filter @coach-ai/api build",
+    "dev": "pnpm --filter @coach-ai/api dev",
+    "start": "pnpm --filter @coach-ai/api start",
+    "lint": "pnpm --filter @coach-ai/api lint",
+    "typecheck": "pnpm --filter @coach-ai/api typecheck",
+    "test": "pnpm --filter @coach-ai/api test",
+    "db:generate": "pnpm --filter @coach-ai/api db:generate",
+    "db:migrate": "pnpm --filter @coach-ai/api db:migrate",
+    "db:push": "pnpm --filter @coach-ai/api db:push",
+    "db:seed": "pnpm --filter @coach-ai/api db:seed",
+    "db:studio": "pnpm --filter @coach-ai/api db:studio"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3"
+  }
+}

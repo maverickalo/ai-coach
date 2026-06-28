@@ -1,0 +1,164 @@
+export type DeterministicIntent = "opt_in" | "opt_out" | "help";
+
+export type CoachIntent =
+  | DeterministicIntent
+  | "log_workout"
+  | "answer_exercise_question"
+  | "report_pain"
+  | "request_substitution"
+  | "request_shortened_workout"
+  | "schedule_change"
+  | "general_chat"
+  | "unknown";
+
+export interface User {
+  id: string;
+  phoneNumber: string;
+  displayName: string | null;
+  timezone: string;
+}
+
+export interface UserProfile {
+  primaryGoal: string | null;
+  trainingStyle: string | null;
+  dietaryNotes: string | null;
+  injuryNotes: string | null;
+}
+
+export interface Exercise {
+  id: string;
+  name: string;
+  category: string | null;
+  primaryMuscles: string[];
+  equipment: string[];
+  instructions: string | null;
+  commonSubstitutions: string[];
+}
+
+export interface PrescribedExercise {
+  templateExerciseId: string;
+  exercise: Exercise;
+  sortOrder: number;
+  prescribedSets: number | null;
+  prescribedReps: string | null;
+  prescribedWeight: string | null;
+  notes: string | null;
+}
+
+export interface CurrentWorkout {
+  id: string;
+  name: string;
+  focus: string | null;
+  scheduledDate: string;
+  status: string;
+  exercises: PrescribedExercise[];
+}
+
+export interface RecentWorkoutSummary {
+  name: string;
+  scheduledDate: string;
+  status: string;
+  coachSummary: string | null;
+}
+
+export interface Memory {
+  id: string;
+  key: string;
+  value: string;
+  category: string;
+  confidence: number;
+  source: string;
+}
+
+export interface ConversationMessage {
+  direction: "inbound" | "outbound";
+  body: string;
+  intent: string | null;
+  createdAt: Date;
+}
+
+export interface CoachContext {
+  user: User;
+  profile: UserProfile | null;
+  currentWorkout: CurrentWorkout | null;
+  recentWorkouts: RecentWorkoutSummary[];
+  memories: Memory[];
+  recentMessages: ConversationMessage[];
+}
+
+export interface ParsedExerciseLog {
+  exerciseName: string;
+  status: "completed" | "partial" | "skipped" | "substituted";
+  sets: number | null;
+  reps: string | null;
+  weight: number | null;
+  rpe: number | null;
+  difficulty: "easy" | "moderate" | "hard" | null;
+  skippedReason: string | null;
+  substituteExerciseName: string | null;
+  notes: string | null;
+}
+
+export interface ParsedPain {
+  bodyArea: string;
+  description: string;
+  severity: number | null;
+}
+
+export interface ParsedWorkoutLog {
+  exercises: ParsedExerciseLog[];
+  pain: ParsedPain[];
+  notes: string[];
+  workoutCompletion: "complete" | "partial" | "unknown";
+}
+
+export type CoachAction =
+  | { type: "log_exercise"; payload: ParsedExerciseLog }
+  | {
+      type: "record_pain";
+      payload: ParsedPain;
+    }
+  | {
+      type: "record_substitution";
+      payload: {
+        originalExercise: string;
+        substituteExercise: string;
+        reason: string;
+      };
+    }
+  | {
+      type: "create_memory";
+      payload: {
+        category: string;
+        key: string;
+        value: string;
+        confidence: number;
+        source: string;
+      };
+    }
+  | {
+      type: "ask_follow_up";
+      payload: {
+        question: string;
+      };
+    }
+  | {
+      type: "create_event";
+      payload: {
+        eventType: string;
+        data: Record<string, unknown>;
+      };
+    };
+
+export interface CoachResult {
+  reply: string;
+  actions: CoachAction[];
+  intent: CoachIntent;
+}
+
+export interface InboundMessage {
+  messageSid: string;
+  from: string;
+  to: string;
+  body: string;
+}
