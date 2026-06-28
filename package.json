@@ -12,7 +12,7 @@
     "dev": "pnpm --parallel --filter @coach-ai/api --filter @coach-ai/web dev",
     "dev:api": "pnpm --filter @coach-ai/api dev",
     "dev:web": "pnpm --filter @coach-ai/web dev",
-    "start": "pnpm --filter @coach-ai/api start",
+    "start": "node scripts/railway-start.mjs",
     "lint": "pnpm --filter @coach-ai/api lint && pnpm --filter @coach-ai/web lint",
     "typecheck": "pnpm --filter @coach-ai/api typecheck && pnpm --filter @coach-ai/web typecheck",
     "test": "pnpm --filter @coach-ai/api test",
