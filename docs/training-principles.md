@@ -19,7 +19,8 @@ References:
 ## Fatigue And Safety
 
 - Cardio mode should account for yesterday's session, this week's load, and any
-  pain notes.
+  pain notes. Use conditioning logs when available instead of guessing from the
+  workout title alone.
 - After heavy lower-body days or lower-limb pain, bias conditioning toward rower
   or Assault Bike instead of more impact running.
 - Do not stack hard running onto pain, altered gait, or severe soreness.
@@ -36,7 +37,9 @@ References:
 ## Logging And Progression
 
 - Logged weights, sets, reps, RPE, skipped exercises, substitutions, and pain
-  notes are training data for future recommendations.
+  notes are training data for future recommendations. Logged runs, rower
+  meters, Assault Bike calories, sled work, circuits, walks, duration,
+  intensity, and conditioning RPE are also training data.
 - When previous performance exists, Coach AI should reference it in plain
   language before recommending a target.
 - Progression should be conservative: repeat after missed reps or RPE 8+, add

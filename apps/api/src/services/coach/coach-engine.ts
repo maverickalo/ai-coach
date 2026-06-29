@@ -137,18 +137,26 @@ export class CoachEngine {
       });
     }
 
+    for (const conditioning of input.parsedWorkout?.conditioning ?? []) {
+      actions.push({ type: "log_conditioning", payload: conditioning });
+    }
+
     for (const pain of input.parsedWorkout?.pain ?? []) {
       actions.push({ type: "record_pain", payload: pain });
     }
 
-    if ((input.parsedWorkout?.exercises.length ?? 0) > 0) {
+    if (
+      (input.parsedWorkout?.exercises.length ?? 0) > 0 ||
+      (input.parsedWorkout?.conditioning.length ?? 0) > 0
+    ) {
       actions.push({
         type: "create_event",
         payload: {
           eventType: "CoachRecommendationGenerated",
           data: {
             intent: input.intent,
-            exerciseCount: input.parsedWorkout?.exercises.length ?? 0
+            exerciseCount: input.parsedWorkout?.exercises.length ?? 0,
+            conditioningCount: input.parsedWorkout?.conditioning.length ?? 0
           }
         }
       });
@@ -171,10 +179,15 @@ export class CoachEngine {
       const logged = input.parsedWorkout?.exercises
         .filter((entry) => entry.status !== "skipped")
         .map((entry) => entry.exerciseName);
+      const conditioningLogged = input.parsedWorkout?.conditioning.map(
+        (entry) => entry.modality.replaceAll("_", " ")
+      );
 
       const acknowledgement =
         logged && logged.length > 0
           ? `Logged ${logged.join(" and ")}.`
+          : conditioningLogged && conditioningLogged.length > 0
+            ? `Logged ${conditioningLogged.join(" and ")}.`
           : "Got it.";
       const progressionEvent = actions.find(
         (action) =>

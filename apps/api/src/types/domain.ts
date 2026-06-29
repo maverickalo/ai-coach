@@ -35,6 +35,7 @@ export interface Exercise {
   instructions: string | null;
   commonSubstitutions: string[];
   demoUrl: string;
+  gifSearchUrl: string;
 }
 
 export interface PrescribedExercise {
@@ -73,6 +74,26 @@ export interface ConditioningRecommendation {
   prescription: string;
   reason: string;
   caution: string | null;
+}
+
+export interface ParsedConditioningLog {
+  modality:
+    | "run"
+    | "treadmill"
+    | "rower"
+    | "assault_bike"
+    | "bike"
+    | "sled"
+    | "battle_ropes"
+    | "circuit"
+    | "walk"
+    | "other";
+  distanceMeters: number | null;
+  durationSeconds: number | null;
+  calories: number | null;
+  intensity: "easy" | "moderate" | "hard" | "fast" | null;
+  rpe: number | null;
+  notes: string | null;
 }
 
 export interface RecentWorkoutSummary {
@@ -128,6 +149,7 @@ export interface ParsedPain {
 
 export interface ParsedWorkoutLog {
   exercises: ParsedExerciseLog[];
+  conditioning: ParsedConditioningLog[];
   pain: ParsedPain[];
   notes: string[];
   workoutCompletion: "complete" | "partial" | "unknown";
@@ -135,6 +157,7 @@ export interface ParsedWorkoutLog {
 
 export type CoachAction =
   | { type: "log_exercise"; payload: ParsedExerciseLog }
+  | { type: "log_conditioning"; payload: ParsedConditioningLog }
   | {
       type: "record_pain";
       payload: ParsedPain;

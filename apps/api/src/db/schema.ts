@@ -222,6 +222,31 @@ export const exerciseSets = pgTable(
   ]
 );
 
+export const conditioningLogs = pgTable(
+  "conditioning_logs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    workoutId: uuid("workout_id").references(() => workouts.id, {
+      onDelete: "set null"
+    }),
+    modality: text("modality").notNull(),
+    distanceMeters: numeric("distance_meters", { precision: 10, scale: 2 }),
+    durationSeconds: integer("duration_seconds"),
+    calories: integer("calories"),
+    intensity: text("intensity"),
+    rpe: numeric("rpe", { precision: 3, scale: 1 }),
+    notes: text("notes"),
+    ...timestamps
+  },
+  (table) => [
+    index("conditioning_logs_user_time_idx").on(table.userId, table.createdAt),
+    index("conditioning_logs_workout_idx").on(table.workoutId)
+  ]
+);
+
 export const substitutions = pgTable("substitutions", {
   id: uuid("id").defaultRandom().primaryKey(),
   workoutId: uuid("workout_id")

@@ -9,6 +9,7 @@ const workout: CurrentWorkout = {
   id: "workout-1",
   name: "Lower Body Strength",
   focus: null,
+  estimatedMinutes: 60,
   scheduledDate: "2026-06-27",
   status: "scheduled",
   exercises: [
@@ -21,7 +22,9 @@ const workout: CurrentWorkout = {
         primaryMuscles: [],
         equipment: [],
         instructions: null,
-        commonSubstitutions: []
+        commonSubstitutions: [],
+        demoUrl: "https://example.com/video",
+        gifSearchUrl: "https://example.com/gif"
       },
       sortOrder: 1,
       prescribedSets: 1,
@@ -31,21 +34,23 @@ const workout: CurrentWorkout = {
     },
     ...["Back Squat", "Romanian Deadlift", "Box Step-Up"].map(
       (name, index) => ({
-      templateExerciseId: `template-${index}`,
-      exercise: {
-        id: `exercise-${index}`,
-        name,
-        category: null,
-        primaryMuscles: [],
-        equipment: [],
-        instructions: null,
-        commonSubstitutions: []
-      },
-      sortOrder: index + 2,
-      prescribedSets: null,
-      prescribedReps: null,
-      prescribedWeight: null,
-      notes: null
+        templateExerciseId: `template-${index}`,
+        exercise: {
+          id: `exercise-${index}`,
+          name,
+          category: null,
+          primaryMuscles: [],
+          equipment: [],
+          instructions: null,
+          commonSubstitutions: [],
+          demoUrl: "https://example.com/video",
+          gifSearchUrl: "https://example.com/gif"
+        },
+        sortOrder: index + 2,
+        prescribedSets: null,
+        prescribedReps: null,
+        prescribedWeight: null,
+        notes: null
       })
     )
   ]
@@ -88,6 +93,29 @@ describe("parseWorkoutLogFallback", () => {
 
     expect(parsed.pain).toEqual([
       expect.objectContaining({ bodyArea: "wrist" })
+    ]);
+  });
+
+  it("parses common conditioning formats", () => {
+    const parsed = parseWorkoutLogFallback(
+      "Ran 2 miles moderate, rower 2000 meters, assault bike 50 calories",
+      null
+    );
+
+    expect(parsed.conditioning).toEqual([
+      expect.objectContaining({
+        modality: "run",
+        distanceMeters: 3219,
+        intensity: "moderate"
+      }),
+      expect.objectContaining({
+        modality: "rower",
+        distanceMeters: 2000
+      }),
+      expect.objectContaining({
+        modality: "assault_bike",
+        calories: 50
+      })
     ]);
   });
 });

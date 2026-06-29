@@ -36,7 +36,7 @@ Open `http://localhost:3000`, sign in, and send a message from `/coach`.
 
 Status: scaffolded; requires a live Supabase execution
 
-- 17-table Drizzle schema
+- 18-table Drizzle schema
 - generated SQL migration
 - Sean profile
 - complete equipment list
@@ -62,6 +62,8 @@ Status: implemented
 - outbound message storage
 - `/jobs/send-daily-workout`
 - in-process production daily reminder scheduler
+- exercise video and GIF-search links in daily posts and check-ins
+- `starting now` in-session check-ins for the next unlogged main exercise
 
 Remaining:
 
@@ -95,6 +97,8 @@ Status: implemented
 - skipped and substituted exercises
 - pain memories and events
 - missing-exercise follow-ups
+- structured conditioning logs for run, treadmill, rower, Assault Bike, sled,
+  battle ropes, circuits, walks, calories, distance, duration, intensity, and RPE
 
 Remaining:
 
@@ -112,6 +116,9 @@ Status: implemented for V1 rules
 - pain blocks progression
 - time and dislike skip handling
 - safe pain follow-up language
+- deterministic short, standard, long, strength-biased, and HYROX-biased
+  workout reshaping
+- missed-day replanning guidance that avoids doubling hard lower-body work
 
 Remaining:
 

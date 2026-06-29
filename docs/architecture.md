@@ -86,6 +86,8 @@ File: `src/services/conversation/conversation-engine.ts`
 - Handles START, STOP, and HELP before any model call.
 - Builds context, classifies intent, invokes the Coach Engine, and applies
   returned actions.
+- Handles deterministic workout start, session-shape requests, exercise demo
+  requests, and missed-day replanning before model-generated coaching.
 - Is the transaction/orchestration boundary for future reliability work.
 
 ### Coach Engine
@@ -107,8 +109,13 @@ File: `src/services/workout/workout-engine.ts`
 - Creates a scheduled workout exactly once per user/date.
 - Loads prescribed exercises in order.
 - Persists exercise summaries and set detail.
+- Persists conditioning logs such as runs, treadmill work, rower meters,
+  Assault Bike calories, sled work, circuits, and walks.
+- Builds deterministic short, standard, long, strength-biased, and HYROX-biased
+  versions of the current workout.
+- Adjusts missed-day guidance without doubling hard work onto the next day.
 - Builds concise daily workout reminder text.
-- Loads weekly workout and exercise-log data.
+- Loads weekly workout, strength-log, and conditioning-log data.
 
 ### Workout Log Parser
 
@@ -116,7 +123,7 @@ File: `src/services/workout/workout-log-parser.ts`
 
 - Uses OpenAI structured output when configured.
 - Falls back to deterministic parsing for common `225 5x8`, RPE, skipped
-  exercise, and pain patterns.
+  exercise, conditioning, and pain patterns.
 - Normalizes common aliases such as squat, RDL, bench, and step-ups.
 - Detects prescribed exercises that were not mentioned.
 
@@ -184,6 +191,7 @@ Files: `src/services/scheduler`
 | `workouts` | Scheduled and completed workout instances |
 | `exercise_logs` | Per-exercise summary, status, load, RPE, pain, notes |
 | `exercise_sets` | Individual set details |
+| `conditioning_logs` | Runs, rower, bike, sled, circuit, walking, and other conditioning work |
 | `substitutions` | Original and substitute exercise pairs |
 | `memories` | Confidence-scored long-term memory |
 | `conversations` | Channel-level threads |

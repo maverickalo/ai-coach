@@ -6,6 +6,7 @@ export interface RecentTrainingSignal {
   focus: string | null;
   status: string;
   exerciseNames: string[];
+  conditioningModalities?: string[];
   painReported: boolean;
 }
 
@@ -18,13 +19,23 @@ export function recommendConditioning(
 ): ConditioningRecommendation {
   const recentText = recentTraining
     .map((item) =>
-      [item.workoutName, item.focus, ...item.exerciseNames].join(" ")
+      [
+        item.workoutName,
+        item.focus,
+        ...item.exerciseNames,
+        ...(item.conditioningModalities ?? [])
+      ].join(" ")
     )
     .join(" ")
     .toLowerCase();
   const yesterday = recentTraining[0];
   const yesterdayText = yesterday
-    ? [yesterday.workoutName, yesterday.focus, ...yesterday.exerciseNames]
+    ? [
+        yesterday.workoutName,
+        yesterday.focus,
+        ...yesterday.exerciseNames,
+        ...(yesterday.conditioningModalities ?? [])
+      ]
         .join(" ")
         .toLowerCase()
     : "";

@@ -144,7 +144,7 @@ export class WorkoutCheckInScheduler {
       ? `<@${this.slack.mentionUserId}> `
       : "";
     const demo = nextExercise?.exercise.demoUrl
-      ? ` Demo: ${nextExercise.exercise.demoUrl}`
+      ? ` Demo: <${nextExercise.exercise.demoUrl}|video> | <${nextExercise.exercise.gifSearchUrl}|GIF search>`
       : "";
     const text = `${mention}Quick check-in: how did ${exerciseName} go? Send weight, sets, reps, and RPE when you have it.${previous}${demo}`;
 

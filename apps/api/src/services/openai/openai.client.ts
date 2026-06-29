@@ -41,8 +41,30 @@ const parsedExerciseSchema = z.object({
   notes: z.string().nullable()
 });
 
+const parsedConditioningSchema = z.object({
+  modality: z.enum([
+    "run",
+    "treadmill",
+    "rower",
+    "assault_bike",
+    "bike",
+    "sled",
+    "battle_ropes",
+    "circuit",
+    "walk",
+    "other"
+  ]),
+  distanceMeters: z.number().nonnegative().nullable(),
+  durationSeconds: z.number().int().nonnegative().nullable(),
+  calories: z.number().int().nonnegative().nullable(),
+  intensity: z.enum(["easy", "moderate", "hard", "fast"]).nullable(),
+  rpe: z.number().min(1).max(10).nullable(),
+  notes: z.string().nullable()
+});
+
 const parsedWorkoutSchema = z.object({
   exercises: z.array(parsedExerciseSchema),
+  conditioning: z.array(parsedConditioningSchema),
   pain: z.array(
     z.object({
       bodyArea: z.string(),
@@ -224,7 +246,7 @@ export class OpenAiClient {
       return "request_shortened_workout";
     }
     if (
-      /(\d+\s*[xX]\s*\d+|rpe|skipped|finished|completed|\bdone\b)/i.test(
+      /(\d+\s*[xX]\s*\d+|rpe|skipped|finished|completed|\bdone\b|\br(an|un|unning)\b|rower|treadmill|assault bike|calories|meters?|miles?)/i.test(
         normalized
       )
     ) {

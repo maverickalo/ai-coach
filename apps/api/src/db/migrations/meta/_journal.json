@@ -15,6 +15,13 @@
       "when": 1782607563540,
       "tag": "0001_acoustic_firebrand",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1782699796006,
+      "tag": "0002_redundant_thunderbolt_ross",
+      "breakpoints": true
     }
   ]
 }

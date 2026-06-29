@@ -27,6 +27,10 @@ Rules:
 - Preserve pounds as the numeric weight; do not convert units.
 - Use partial when reps or sets were missed.
 - Use skipped when the user explicitly did not perform an exercise.
+- Capture conditioning separately when the user logs running, treadmill, rower,
+  Assault Bike, bike, sled, battle ropes, walking, or circuit work.
+- For conditioning, capture distance meters, duration seconds, calories,
+  intensity, and RPE when stated.
 - Capture pain separately with body area, description, and severity when stated.
 - Do not invent sets, reps, weight, RPE, pain severity, or skip reasons.
 - "Done except X" means partial workout completion and X was skipped.

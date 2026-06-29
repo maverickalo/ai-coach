@@ -43,6 +43,32 @@ function isExerciseDemoRequest(body: string): boolean {
   return /\b(gif|demo|video|show me|how do i|how to)\b/i.test(body);
 }
 
+function getRequestedSessionShape(
+  body: string
+): "short" | "standard" | "long" | "strength" | "hyrox" | null {
+  const normalized = body.trim().toLowerCase();
+  if (/^(short|shorter)$|only have \d+|30 minutes|quick/i.test(normalized)) {
+    return "short";
+  }
+  if (/^(standard|normal|as written)$/i.test(normalized)) {
+    return "standard";
+  }
+  if (/^(long|longer)$|more time|extra work/i.test(normalized)) {
+    return "long";
+  }
+  if (/^(strength|strength bias|strength-biased)$/i.test(normalized)) {
+    return "strength";
+  }
+  if (/^(hyrox|cardio|circuit)$|hyrox.*(version|style|bias)|more cardio/i.test(normalized)) {
+    return "hyrox";
+  }
+  return null;
+}
+
+function isMissedDayRequest(body: string): boolean {
+  return /\b(missed|skipped|forgot|didn't do|did not do)\b.*\b(day|workout|yesterday|session)\b/i.test(body);
+}
+
 export class ConversationEngine {
   constructor(
     private readonly db: Database,
@@ -120,6 +146,10 @@ export class ConversationEngine {
         result = await this.handleWorkoutStarted(input.userId, context);
       } else if (isExerciseDemoRequest(input.body)) {
         result = this.handleExerciseDemoRequest(input.body, context);
+      } else if (getRequestedSessionShape(input.body)) {
+        result = await this.handleSessionShapeRequest(input.body, context);
+      } else if (isMissedDayRequest(input.body)) {
+        result = await this.handleMissedDayRequest(input.userId);
       } else {
         const intent = await classifyIntent(input.body, this.openai);
         const shouldParse =
@@ -296,6 +326,59 @@ export class ConversationEngine {
     };
   }
 
+  private async handleSessionShapeRequest(
+    body: string,
+    context: Awaited<ReturnType<CoachContextBuilder["build"]>>
+  ): Promise<CoachResult> {
+    const shape = getRequestedSessionShape(body) ?? "standard";
+    if (!context.currentWorkout) {
+      return {
+        intent: "request_shortened_workout",
+        actions: [],
+        reply:
+          "I do not see today's workout assigned yet. Ask for today's workout first, then send short, standard, long, strength, or HYROX."
+      };
+    }
+
+    await this.db.insert(coachEvents).values({
+      userId: context.user.id,
+      workoutId: context.currentWorkout.id,
+      eventType: "WorkoutPlanAdjusted",
+      payload: {
+        requestedShape: shape,
+        source: "conversation"
+      }
+    });
+
+    return {
+      intent:
+        shape === "short" ? "request_shortened_workout" : "schedule_change",
+      actions: [],
+      reply: this.workoutEngine.buildSessionAdjustmentMessage(
+        context.currentWorkout,
+        shape
+      )
+    };
+  }
+
+  private async handleMissedDayRequest(userId: string): Promise<CoachResult> {
+    await this.db.insert(coachEvents).values({
+      userId,
+      workoutId: null,
+      eventType: "WorkoutPlanAdjusted",
+      payload: {
+        reason: "missed_day_request",
+        source: "conversation"
+      }
+    });
+
+    return {
+      intent: "schedule_change",
+      actions: [],
+      reply: await this.workoutEngine.buildMissedDayAdjustmentMessage(userId)
+    };
+  }
+
   private handleExerciseDemoRequest(
     body: string,
     context: Awaited<ReturnType<CoachContextBuilder["build"]>>
@@ -319,7 +402,7 @@ export class ConversationEngine {
     return {
       intent: "answer_exercise_question",
       actions: [],
-      reply: `${exercise.exercise.name} demo: ${exercise.exercise.demoUrl}`
+      reply: `${exercise.exercise.name}\nVideo: ${exercise.exercise.demoUrl}\nGIF search: ${exercise.exercise.gifSearchUrl}`
     };
   }
 
@@ -331,6 +414,12 @@ export class ConversationEngine {
     for (const action of actions) {
       if (action.type === "log_exercise" && workoutId) {
         await this.workoutEngine.logExercise(userId, workoutId, action.payload);
+      } else if (action.type === "log_conditioning") {
+        await this.workoutEngine.logConditioning(
+          userId,
+          workoutId,
+          action.payload
+        );
       } else if (action.type === "record_pain") {
         const date = dateInTimeZone(new Date(), "America/Los_Angeles");
         await this.memoryEngine.remember(userId, {

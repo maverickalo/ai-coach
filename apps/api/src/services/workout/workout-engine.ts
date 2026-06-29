@@ -2,6 +2,7 @@ import { and, asc, desc, eq, gte, ilike, lte, sql } from "drizzle-orm";
 import type { Database } from "../../db/index.js";
 import {
   coachEvents,
+  conditioningLogs,
   exerciseLogs,
   exercises,
   exerciseSets,
@@ -12,12 +13,13 @@ import {
 } from "../../db/schema.js";
 import type {
   CurrentWorkout,
+  ParsedConditioningLog,
   ParsedExerciseLog,
   RecentWorkoutSummary
 } from "../../types/domain.js";
 import { dateInTimeZone, dayOfWeekInTimeZone } from "../../utils/dates.js";
 import { recommendConditioning } from "./conditioning-engine.js";
-import { exerciseDemoUrl } from "./exercise-resources.js";
+import { exerciseResource } from "./exercise-resources.js";
 
 export class WorkoutEngine {
   constructor(private readonly db: Database) {}
@@ -154,7 +156,7 @@ export class WorkoutEngine {
           equipment: item.equipment,
           instructions: item.instructions,
           commonSubstitutions: item.commonSubstitutions,
-          demoUrl: exerciseDemoUrl(item.exerciseName)
+          ...exerciseResource(item.exerciseName)
         }
       }))
     );
@@ -277,6 +279,31 @@ export class WorkoutEngine {
     });
   }
 
+  async logConditioning(
+    userId: string,
+    workoutId: string | null,
+    input: ParsedConditioningLog
+  ): Promise<void> {
+    await this.db.insert(conditioningLogs).values({
+      userId,
+      workoutId,
+      modality: input.modality,
+      distanceMeters: input.distanceMeters?.toString() ?? null,
+      durationSeconds: input.durationSeconds,
+      calories: input.calories,
+      intensity: input.intensity,
+      rpe: input.rpe?.toString() ?? null,
+      notes: input.notes
+    });
+
+    await this.db.insert(coachEvents).values({
+      userId,
+      workoutId,
+      eventType: "ConditioningLogged",
+      payload: { ...input }
+    });
+  }
+
   async updateWorkoutStatus(
     workoutId: string,
     status: "in_progress" | "completed" | "partially_completed" | "skipped"
@@ -377,6 +404,13 @@ export class WorkoutEngine {
           .from(exerciseLogs)
           .innerJoin(exercises, eq(exerciseLogs.exerciseId, exercises.id))
           .where(eq(exerciseLogs.workoutId, workout.id));
+        const conditioningRows = await this.db
+          .select({
+            modality: conditioningLogs.modality,
+            intensity: conditioningLogs.intensity
+          })
+          .from(conditioningLogs)
+          .where(eq(conditioningLogs.workoutId, workout.id));
 
         return {
           date: workout.date,
@@ -384,6 +418,7 @@ export class WorkoutEngine {
           focus: workout.focus,
           status: workout.status,
           exerciseNames: exerciseRows.map((row) => row.exerciseName),
+          conditioningModalities: conditioningRows.map((row) => row.modality),
           painReported: exerciseRows.some((row) => row.painScore !== null)
         };
       })
@@ -424,7 +459,7 @@ export class WorkoutEngine {
         return [
           `*${item.sortOrder}. ${item.exercise.name}* - ${prescription}`,
           `   ${formatLastPerformance(item)}`,
-          `   Demo: ${item.exercise.demoUrl}`
+          `   Demo: <${item.exercise.demoUrl}|video> | <${item.exercise.gifSearchUrl}|GIF search>`
         ].join("\n");
       })
       .join("\n");
@@ -457,6 +492,108 @@ export class WorkoutEngine {
     ]
       .filter(Boolean)
       .join("\n\n");
+  }
+
+  buildSessionAdjustmentMessage(
+    workout: CurrentWorkout,
+    shape: "short" | "standard" | "long" | "strength" | "hyrox"
+  ): string {
+    const mainExercises = workout.exercises.filter((item) => item.notes !== "Warm-up");
+    const names = mainExercises.map((item) => item.exercise.name);
+    const topPriority = names.slice(0, 3).join(", ");
+    const nextTier = names.slice(3, 6).join(", ");
+    const conditioning = workout.conditioning;
+
+    if (shape === "short") {
+      return [
+        `Short version for *${workout.name}*:`,
+        `1. Prioritize ${topPriority}.`,
+        nextTier ? `2. If time remains, do 1-2 quick sets of ${nextTier}.` : null,
+        "3. Skip extra accessories before cutting the main lifts.",
+        conditioning
+          ? `Conditioning: keep it low-stress today. ${conditioning.mode === "run" ? "Use 5-10 controlled treadmill minutes only if legs feel good." : conditioning.prescription}`
+          : null,
+        "Reply `starting now` when you begin."
+      ]
+        .filter(Boolean)
+        .join("\n");
+    }
+
+    if (shape === "long") {
+      return [
+        `Long version for *${workout.name}*:`,
+        `Run the full strength session: ${names.join(", ")}.`,
+        "Add one back-off set on the first two main lifts if RPE is 7 or lower.",
+        conditioning
+          ? `Then extend conditioning: ${conditioning.prescription}`
+          : "Finish with 15-25 minutes easy aerobic work.",
+        "Keep the extra work smooth. No max-effort sets today."
+      ].join("\n");
+    }
+
+    if (shape === "strength") {
+      return [
+        `Strength-biased version for *${workout.name}*:`,
+        `Main lifts first: ${topPriority}.`,
+        nextTier ? `Accessories second: ${nextTier}.` : null,
+        "Keep conditioning easy and short so it does not steal from the lifting quality.",
+        "Log weights, sets, reps, and RPE as you go."
+      ]
+        .filter(Boolean)
+        .join("\n");
+    }
+
+    if (shape === "hyrox") {
+      const stations = mainExercises.slice(0, 5);
+      const circuit = stations
+        .map((item, index) => {
+          const runPiece = conditioning?.mode === "row" || conditioning?.mode === "bike"
+            ? index % 2 === 0
+              ? "500m row or 2 min Assault Bike"
+              : "easy 400m treadmill"
+            : "400m controlled run";
+          return `${index + 1}. ${runPiece} + ${item.exercise.name} ${item.prescribedSets ?? 3}x${item.prescribedReps ?? "quality reps"}`;
+        })
+        .join("\n");
+
+      return [
+        `HYROX-biased version for *${workout.name}*:`,
+        circuit,
+        conditioning ? `Why this setup: ${conditioning.reason}` : null,
+        conditioning?.caution ? `Watch-out: ${conditioning.caution}` : null,
+        "Keep runs controlled. This should feel like compromised strength practice, not a race."
+      ]
+        .filter(Boolean)
+        .join("\n");
+    }
+
+    return [
+      `Standard version for *${workout.name}*:`,
+      `Do the session as posted: ${names.join(", ")}.`,
+      conditioning ? `Conditioning direction: ${conditioning.prescription}` : null,
+      "Reply `starting now` when you begin."
+    ]
+      .filter(Boolean)
+      .join("\n");
+  }
+
+  async buildMissedDayAdjustmentMessage(userId: string): Promise<string> {
+    const recent = await this.getRecentWorkouts(userId, 5);
+    const missed = recent.find((workout) =>
+      ["scheduled", "in_progress", "skipped"].includes(workout.status)
+    );
+
+    if (!missed) {
+      return "I do not see a clearly missed recent workout. For today, follow the posted plan and tell me if you need it short, standard, long, strength, or HYROX.";
+    }
+
+    return [
+      `Got it. I see the missed/unfinished session: *${missed.name}* from ${missed.scheduledDate}.`,
+      "Do not double up the whole missed day.",
+      "Today: keep the current workout, then carry forward only the most important missed strength movement if it does not hit the same tired joints.",
+      "If legs are beat up, move missed lower-body work to the next lower day and use rower or Assault Bike instead of extra running today.",
+      "Send `short`, `strength`, or `HYROX` and I will format today's exact version."
+    ].join("\n");
   }
 
   async getWeeklyData(userId: string, weekStart: string, weekEnd: string) {
@@ -502,6 +639,27 @@ export class WorkoutEngine {
         )
       );
 
-    return { workouts: workoutRows, exerciseLogs: logs };
+    const conditioning = await this.db
+      .select({
+        workoutId: conditioningLogs.workoutId,
+        modality: conditioningLogs.modality,
+        distanceMeters: conditioningLogs.distanceMeters,
+        durationSeconds: conditioningLogs.durationSeconds,
+        calories: conditioningLogs.calories,
+        intensity: conditioningLogs.intensity,
+        rpe: conditioningLogs.rpe,
+        notes: conditioningLogs.notes,
+        createdAt: conditioningLogs.createdAt
+      })
+      .from(conditioningLogs)
+      .where(
+        and(
+          eq(conditioningLogs.userId, userId),
+          gte(conditioningLogs.createdAt, new Date(`${weekStart}T00:00:00Z`)),
+          lte(conditioningLogs.createdAt, new Date(`${weekEnd}T23:59:59Z`))
+        )
+      );
+
+    return { workouts: workoutRows, exerciseLogs: logs, conditioningLogs: conditioning };
   }
 }

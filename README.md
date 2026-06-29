@@ -136,6 +136,12 @@ Daily workout posts and in-session check-ins include exercise demo links for
 the relevant movements. You can also ask Slack for a demo directly with
 messages like `bench gif`, `show me RDL`, or `how do I do step-ups`.
 
+During a workout, reply `starting now` and Coach AI will check in about the
+next unlogged main exercise. You can reshape the day with `short`, `standard`,
+`long`, `strength`, or `HYROX`. HYROX mode turns the strength session into
+compromised strength work with run/row/bike segments based on recent training,
+pain notes, and logged conditioning.
+
 In Supabase Auth, enable email magic links and add these redirect URLs:
 
 ```text
@@ -205,6 +211,11 @@ curl -X POST http://localhost:3001/dev/simulate-message \
 
 The route stores the conversation and applies the same Coach Engine actions as
 the web and Slack paths. It is disabled when `NODE_ENV=production`.
+
+Workout logs persist strength and conditioning data. Examples that are
+structured and saved include `Back Squat 225 5x8 RPE 7`, `ran 2 miles
+moderate`, `rower 2000 meters`, `assault bike 50 calories`, skipped exercises,
+substitutions, and pain notes.
 
 ## API routes
 

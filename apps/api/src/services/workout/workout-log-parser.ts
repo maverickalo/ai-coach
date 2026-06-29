@@ -1,5 +1,6 @@
 import type {
   CurrentWorkout,
+  ParsedConditioningLog,
   ParsedExerciseLog,
   ParsedPain,
   ParsedWorkoutLog
@@ -75,6 +76,97 @@ function detectPain(message: string): ParsedPain[] {
         severity: severityMatch?.[1] ? Number(severityMatch[1]) : null
       };
     });
+}
+
+function parseDistanceMeters(value: number, unit: string | undefined): number {
+  const normalizedUnit = unit?.toLowerCase() ?? "meters";
+  if (normalizedUnit.startsWith("mile")) {
+    return Math.round(value * 1609.34);
+  }
+  if (normalizedUnit === "k" || normalizedUnit.startsWith("km")) {
+    return Math.round(value * 1000);
+  }
+  return value;
+}
+
+function detectIntensity(segment: string): ParsedConditioningLog["intensity"] {
+  const lowerSegment = segment.toLowerCase();
+  if (/\b(easy|slow|recovery)\b/.test(lowerSegment)) {
+    return "easy";
+  }
+  if (/\b(medium|moderate|steady)\b/.test(lowerSegment)) {
+    return "moderate";
+  }
+  if (/\b(hard|tough)\b/.test(lowerSegment)) {
+    return "hard";
+  }
+  if (/\b(fast|sprint)\b/.test(lowerSegment)) {
+    return "fast";
+  }
+  return null;
+}
+
+function detectConditioning(message: string): ParsedConditioningLog[] {
+  const conditioning: ParsedConditioningLog[] = [];
+  const segments = message
+    .split(/[,;\n]|\.(?=\s|$)/)
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+
+  for (const segment of segments) {
+    const lowerSegment = segment.toLowerCase();
+    const modality = lowerSegment.includes("assault bike")
+      ? "assault_bike"
+      : lowerSegment.includes("bike")
+        ? "bike"
+        : lowerSegment.includes("rower") || lowerSegment.includes("row ")
+          ? "rower"
+          : lowerSegment.includes("treadmill")
+            ? "treadmill"
+            : lowerSegment.includes("sled")
+              ? "sled"
+              : lowerSegment.includes("battle rope")
+                ? "battle_ropes"
+                : lowerSegment.includes("walk")
+                  ? "walk"
+                  : /\br(an|un|unning)\b/.test(lowerSegment)
+                    ? "run"
+                    : null;
+
+    if (!modality) {
+      continue;
+    }
+
+    const distanceMatch = segment.match(
+      /(\d+(?:\.\d+)?)\s*(miles?|mi|meters?|metres?|m|km|k)\b/i
+    );
+    const durationMatch = segment.match(
+      /(\d+(?:\.\d+)?)\s*(minutes?|mins?|min|hours?|hrs?|hr)\b/i
+    );
+    const caloriesMatch = segment.match(/(\d+)\s*(?:calories|cals?|cal)\b/i);
+    const rpeMatch = segment.match(/rpe\s*(10|[1-9](?:\.\d)?)/i);
+
+    const durationSeconds = durationMatch?.[1]
+      ? Math.round(
+          Number(durationMatch[1]) *
+            (/h/i.test(durationMatch[2] ?? "") ? 3600 : 60)
+        )
+      : null;
+
+    conditioning.push({
+      modality,
+      distanceMeters: distanceMatch?.[1]
+        ? parseDistanceMeters(Number(distanceMatch[1]), distanceMatch[2])
+        : null,
+      durationSeconds,
+      calories: caloriesMatch?.[1] ? Number(caloriesMatch[1]) : null,
+      intensity: detectIntensity(segment),
+      rpe: rpeMatch?.[1] ? Number(rpeMatch[1]) : null,
+      notes: segment
+    });
+  }
+
+  return conditioning;
 }
 
 export function parseWorkoutLogFallback(
@@ -155,6 +247,7 @@ export function parseWorkoutLogFallback(
 
   return {
     exercises,
+    conditioning: detectConditioning(message),
     pain: detectPain(message),
     notes: exercises.length === 0 ? [message.trim()] : [],
     workoutCompletion
