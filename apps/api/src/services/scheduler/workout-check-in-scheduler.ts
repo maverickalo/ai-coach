@@ -1,4 +1,4 @@
-import { and, eq, isNotNull } from "drizzle-orm";
+import { and, desc, eq, isNotNull } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import type { SlackClient } from "../../adapters/slack/slack.client.js";
 import type { Database } from "../../db/index.js";
@@ -87,19 +87,34 @@ export class WorkoutCheckInScheduler {
     startedAt: Date,
     now: Date
   ): Promise<boolean> {
-    const checkIns = await this.db
-      .select({ createdAt: coachEvents.createdAt })
+    const [lastCheckIn] = await this.db
+      .select({
+        createdAt: coachEvents.createdAt,
+        payload: coachEvents.payload
+      })
       .from(coachEvents)
       .where(
         and(
           eq(coachEvents.workoutId, workoutId),
           eq(coachEvents.eventType, CHECK_IN_EVENT)
         )
-      );
+      )
+      .orderBy(desc(coachEvents.createdAt))
+      .limit(1);
 
-    const lastCheckInAt = checkIns
-      .map((event) => event.createdAt)
-      .sort((a, b) => b.getTime() - a.getTime())[0];
+    const lastExerciseName = lastCheckIn?.payload.exerciseName;
+    if (typeof lastExerciseName === "string") {
+      const loggedNames = new Set(
+        (await this.workoutEngine.getLoggedExerciseNames(workoutId)).map(
+          (name) => name.toLowerCase()
+        )
+      );
+      if (!loggedNames.has(lastExerciseName.toLowerCase())) {
+        return false;
+      }
+    }
+
+    const lastCheckInAt = lastCheckIn?.createdAt;
     const anchor = lastCheckInAt ?? startedAt;
     const elapsedMs = now.getTime() - anchor.getTime();
 
