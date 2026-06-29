@@ -8,7 +8,9 @@ import { progressionScenarios } from "./scenarios/progression.eval.js";
 import { skipExerciseScenarios } from "./scenarios/skip-exercise.eval.js";
 import { strengthSourceOfTruthScenarios } from "./scenarios/strength-source-of-truth.eval.js";
 import { workoutLoggingScenarios } from "./scenarios/workout-logging.eval.js";
+import { workoutMediaScenarios } from "./scenarios/workout-media.eval.js";
 import { workoutStateScenarios } from "./scenarios/workout-state.eval.js";
+import { workoutVariationScenarios } from "./scenarios/workout-variations.eval.js";
 import type { EvalScenario } from "./types.js";
 
 const scenarios: EvalScenario[] = [
@@ -20,7 +22,9 @@ const scenarios: EvalScenario[] = [
   ...progressionScenarios,
   ...checkInFlowScenarios,
   ...workoutStateScenarios,
-  ...endWorkoutSummaryScenarios
+  ...endWorkoutSummaryScenarios,
+  ...workoutMediaScenarios,
+  ...workoutVariationScenarios
 ];
 
 async function runScenario(scenario: EvalScenario): Promise<string[]> {

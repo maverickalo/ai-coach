@@ -20,6 +20,7 @@ import type { CoachEngine } from "../coach/coach-engine.js";
 import type { MemoryEngine } from "../memory/memory-engine.js";
 import type { OpenAiClient } from "../openai/openai.client.js";
 import type { WorkoutEngine } from "../workout/workout-engine.js";
+import { buildWorkoutVariationMessage } from "../workout/workout-variation-library.js";
 import { parseWorkoutLog } from "../workout/workout-log-parser.js";
 import {
   classifyDeterministicIntent,
@@ -41,6 +42,18 @@ function isWorkoutStartMessage(body: string): boolean {
 
 function isExerciseDemoRequest(body: string): boolean {
   return /\b(gif|demo|video|show me|how do i|how to)\b/i.test(body);
+}
+
+export function isWorkoutMediaRequest(body: string): boolean {
+  return /\b(gifs?|demos?|videos?)\b.*\b(today|workout|all|plan|exercises?)\b|\b(today|workout|all|plan|exercises?)\b.*\b(gifs?|demos?|videos?)\b/i.test(
+    body
+  );
+}
+
+function isWorkoutVariationRequest(body: string): boolean {
+  return /\b(more|other|extra|optional|add)\b.*\b(workouts?|options?|combinations?|finishers?)\b|\b(workouts?|options?|combinations?|finishers?)\b.*\b(more|other|extra|optional|add)\b/i.test(
+    body
+  );
 }
 
 export function getRequestedSessionShape(
@@ -156,6 +169,10 @@ export class ConversationEngine {
         result = await this.handleWorkoutStarted(input.userId, context);
       } else if (isCurrentExerciseSkipRequest(input.body)) {
         result = await this.handleCurrentExerciseSkipped(input.userId, context);
+      } else if (isWorkoutMediaRequest(input.body)) {
+        result = this.handleWorkoutMediaRequest(context);
+      } else if (isWorkoutVariationRequest(input.body)) {
+        result = this.handleWorkoutVariationRequest(context);
       } else if (isExerciseDemoRequest(input.body)) {
         result = this.handleExerciseDemoRequest(input.body, context);
       } else if (getRequestedSessionShape(input.body)) {
@@ -473,7 +490,43 @@ export class ConversationEngine {
     return {
       intent: "answer_exercise_question",
       actions: [],
-      reply: `${exercise.exercise.name}\nVideo: ${exercise.exercise.demoUrl}\nGIF search: ${exercise.exercise.gifSearchUrl}`
+      reply: `${exercise.exercise.name}\nVideo: ${exercise.exercise.demoUrl}\nGIF: ${exercise.exercise.gifUrl}`
+    };
+  }
+
+  private handleWorkoutMediaRequest(
+    context: Awaited<ReturnType<CoachContextBuilder["build"]>>
+  ): CoachResult {
+    if (!context.currentWorkout) {
+      return {
+        intent: "answer_exercise_question",
+        actions: [],
+        reply: "I do not see today's workout yet. Ask for today's workout first, then ask for GIFs."
+      };
+    }
+
+    return {
+      intent: "answer_exercise_question",
+      actions: [],
+      reply: this.workoutEngine.buildWorkoutMediaMessage(context.currentWorkout)
+    };
+  }
+
+  private handleWorkoutVariationRequest(
+    context: Awaited<ReturnType<CoachContextBuilder["build"]>>
+  ): CoachResult {
+    if (!context.currentWorkout) {
+      return {
+        intent: "schedule_change",
+        actions: [],
+        reply: "I do not see today's workout yet. Ask for today's workout first, then ask for optional combinations."
+      };
+    }
+
+    return {
+      intent: "schedule_change",
+      actions: [],
+      reply: buildWorkoutVariationMessage(context.currentWorkout)
     };
   }
 

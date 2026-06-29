@@ -693,7 +693,7 @@ export class WorkoutEngine {
         return [
           `*${item.sortOrder}. ${item.exercise.name}* - ${prescription}`,
           `   ${formatLastPerformance(item)}`,
-          `   Demo: <${item.exercise.demoUrl}|video> | <${item.exercise.gifSearchUrl}|GIF search>`
+          `   Demo: <${item.exercise.demoUrl}|video> | <${item.exercise.gifUrl}|GIF>`
         ].join("\n");
       })
       .join("\n");
@@ -722,6 +722,7 @@ export class WorkoutEngine {
       mainWork,
       conditioning,
       "📝 *Log format:* `Back Squat 225 5x8 RPE 7, RDL 185 4x10 hard, skipped step-ups`",
+      "🎞️ Reply `GIFs for today` and I’ll post the form links in this workout thread.",
       "▶️ Reply `starting now` when you begin. I’ll track where you are and check in during the session."
     ]
       .filter(Boolean)
@@ -802,6 +803,20 @@ export class WorkoutEngine {
     ]
       .filter(Boolean)
       .join("\n");
+  }
+
+  buildWorkoutMediaMessage(workout: CurrentWorkout): string {
+    const mainExercises = workout.exercises.filter((item) => item.notes !== "Warm-up");
+    const lines = mainExercises.map(
+      (item) =>
+        `• *${item.exercise.name}*: <${item.exercise.gifUrl}|GIF> | <${item.exercise.demoUrl}|video>`
+    );
+
+    return [
+      `🎞️ *GIFs for ${workout.name}*`,
+      "Use these as quick form references. Keep the written strength plan as the source of truth.",
+      ...lines
+    ].join("\n");
   }
 
   async buildMissedDayAdjustmentMessage(userId: string): Promise<string> {

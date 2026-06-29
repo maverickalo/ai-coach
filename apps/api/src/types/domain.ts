@@ -35,6 +35,7 @@ export interface Exercise {
   instructions: string | null;
   commonSubstitutions: string[];
   demoUrl: string;
+  gifUrl: string;
   gifSearchUrl: string;
 }
 

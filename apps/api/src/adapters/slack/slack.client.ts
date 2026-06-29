@@ -9,6 +9,7 @@ export class SlackClient {
   async postMessage(input: {
     channel: string;
     text: string;
+    threadTs?: string | null;
   }): Promise<SlackMessageResult> {
     const response = await fetch("https://slack.com/api/chat.postMessage", {
       method: "POST",
@@ -18,7 +19,8 @@ export class SlackClient {
       },
       body: JSON.stringify({
         channel: input.channel,
-        text: input.text
+        text: input.text,
+        thread_ts: input.threadTs ?? undefined
       })
     });
 

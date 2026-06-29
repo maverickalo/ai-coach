@@ -24,6 +24,7 @@ const workout: CurrentWorkout = {
         instructions: null,
         commonSubstitutions: [],
         demoUrl: "https://example.com/video",
+        gifUrl: "https://example.com/gif",
         gifSearchUrl: "https://example.com/gif"
       },
       sortOrder: 1,
@@ -44,6 +45,7 @@ const workout: CurrentWorkout = {
           instructions: null,
           commonSubstitutions: [],
           demoUrl: "https://example.com/video",
+          gifUrl: "https://example.com/gif",
           gifSearchUrl: "https://example.com/gif"
         },
         sortOrder: index + 2,

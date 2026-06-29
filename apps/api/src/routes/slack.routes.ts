@@ -1,12 +1,15 @@
-import { and, eq, or } from "drizzle-orm";
+import { and, desc, eq, or } from "drizzle-orm";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { SlackClient } from "../adapters/slack/slack.client.js";
 import { verifySlackRequest } from "../adapters/slack/slack.webhook.js";
 import type { Database } from "../db/index.js";
-import { processedWebhooks, users } from "../db/schema.js";
+import { conversations, messages, processedWebhooks, users } from "../db/schema.js";
 import { env } from "../env.js";
-import type { ConversationEngine } from "../services/conversation/conversation-engine.js";
+import {
+  isWorkoutMediaRequest,
+  type ConversationEngine
+} from "../services/conversation/conversation-engine.js";
 
 const slackUrlVerificationSchema = z.object({
   type: z.literal("url_verification"),
@@ -23,12 +26,16 @@ const slackEventSchema = z.object({
       user: z.string().min(1).optional(),
       bot_id: z.string().optional(),
       subtype: z.string().optional(),
+      ts: z.string().optional(),
+      thread_ts: z.string().optional(),
       text: z.string().trim().min(1).max(4000)
     }),
     z.object({
       type: z.literal("app_mention"),
       channel: z.string().min(1),
       user: z.string().min(1).optional(),
+      ts: z.string().optional(),
+      thread_ts: z.string().optional(),
       text: z.string().trim().min(1).max(4000)
     })
   ])
@@ -59,6 +66,42 @@ async function findOwnerUser(db: Database) {
   }
 
   return owner;
+}
+
+async function findLatestDailyWorkoutThreadTs(
+  db: Database,
+  userId: string
+): Promise<string | null> {
+  const [conversation] = await db
+    .select({ id: conversations.id })
+    .from(conversations)
+    .where(
+      and(
+        eq(conversations.userId, userId),
+        eq(conversations.channel, "slack")
+      )
+    )
+    .limit(1);
+
+  if (!conversation) {
+    return null;
+  }
+
+  const [message] = await db
+    .select({ metadata: messages.metadata })
+    .from(messages)
+    .where(
+      and(
+        eq(messages.conversationId, conversation.id),
+        eq(messages.direction, "outbound"),
+        eq(messages.intent, "daily_workout")
+      )
+    )
+    .orderBy(desc(messages.createdAt))
+    .limit(1);
+
+  const providerMessageId = message?.metadata.providerMessageId;
+  return typeof providerMessageId === "string" ? providerMessageId : null;
 }
 
 export async function slackRoutes(
@@ -146,9 +189,15 @@ export async function slackRoutes(
       messageText
     );
 
+    const explicitThreadTs = "thread_ts" in event ? event.thread_ts : undefined;
+    const latestWorkoutThreadTs = isWorkoutMediaRequest(messageText)
+      ? await findLatestDailyWorkoutThreadTs(dependencies.db, owner.id)
+      : null;
+
     await new SlackClient(env.SLACK_BOT_TOKEN).postMessage({
       channel: event.channel,
-      text: result.reply
+      text: result.reply,
+      threadTs: explicitThreadTs ?? latestWorkoutThreadTs
     });
 
     return { ok: true };

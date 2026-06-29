@@ -1,6 +1,7 @@
 import type { CoachContext, CurrentWorkout } from "../../types/domain.js";
 
 const demoUrl = "https://example.com/video";
+const gifUrl = "https://example.com/gif";
 const gifSearchUrl = "https://example.com/gif";
 
 export const pushWorkout: CurrentWorkout = {
@@ -27,6 +28,7 @@ export const pushWorkout: CurrentWorkout = {
         instructions: "Set the shoulder blades and press with control.",
         commonSubstitutions: ["Neutral-Grip Dumbbell Press"],
         demoUrl,
+        gifUrl,
         gifSearchUrl
       },
       lastPerformance: {
@@ -55,6 +57,7 @@ export const pushWorkout: CurrentWorkout = {
         instructions: "Press up and slightly together with stable shoulders.",
         commonSubstitutions: ["Push-Up"],
         demoUrl,
+        gifUrl,
         gifSearchUrl
       }
     }
@@ -92,6 +95,7 @@ export const lowerWorkout: CurrentWorkout = {
         instructions: "Brace and keep the bar over mid-foot.",
         commonSubstitutions: ["Front Squat"],
         demoUrl,
+        gifUrl,
         gifSearchUrl
       }
     },
@@ -111,6 +115,7 @@ export const lowerWorkout: CurrentWorkout = {
         instructions: "Drive through the foot on the box.",
         commonSubstitutions: ["Reverse Lunge"],
         demoUrl,
+        gifUrl,
         gifSearchUrl
       }
     }

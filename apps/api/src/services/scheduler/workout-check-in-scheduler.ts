@@ -153,7 +153,7 @@ export class WorkoutCheckInScheduler {
       ? `<@${this.slack.mentionUserId}> `
       : "";
     const demo = nextExercise?.exercise.demoUrl
-      ? ` Demo: <${nextExercise.exercise.demoUrl}|video> | <${nextExercise.exercise.gifSearchUrl}|GIF search>`
+      ? ` Demo: <${nextExercise.exercise.demoUrl}|video> | <${nextExercise.exercise.gifUrl}|GIF>`
       : "";
     const progress =
       state && (state.completedExercises.length > 0 || state.skippedExercises.length > 0)
