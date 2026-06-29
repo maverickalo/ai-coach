@@ -663,6 +663,13 @@ export class WorkoutEngine {
     displayName: string | null,
     workout: CurrentWorkout
   ): string {
+    const formatFormLinks = (
+      exercise: CurrentWorkout["exercises"][number]["exercise"]
+    ) => {
+      const gifLabel = exercise.gifLabel ?? "image search";
+      const demoLabel = exercise.demoLabel ?? "video search";
+      return `<${exercise.gifUrl}|${gifLabel}> | <${exercise.demoUrl}|${demoLabel}>`;
+    };
     const formatPrescription = (item: CurrentWorkout["exercises"][number]) => {
       const prescription = [
         item.prescribedSets,
@@ -702,7 +709,7 @@ export class WorkoutEngine {
           item.exercise.purpose ? `   _Why:_ ${item.exercise.purpose}` : null,
           cues ? `   _Cues:_ ${cues}` : null,
           `   ${formatLastPerformance(item)}`,
-          `   _Form:_ <${item.exercise.gifUrl}|GIF> | <${item.exercise.demoUrl}|video>`
+          `   _Form:_ ${formatFormLinks(item.exercise)}`
         ]
           .filter(Boolean)
           .join("\n");
@@ -733,7 +740,7 @@ export class WorkoutEngine {
       mainWork,
       conditioning,
       "📝 *Log format:* `Back Squat 225 5x8 RPE 7, RDL 185 4x10 hard, skipped step-ups`",
-      "🎞️ Reply `GIFs for today` and I’ll post the form links in this workout thread.",
+      "🎞️ Reply `form guide` or `GIFs for today` and I’ll post the full guide in this workout thread.",
       "▶️ Reply `starting now` when you begin. I’ll track where you are and check in during the session."
     ]
       .filter(Boolean)
@@ -818,6 +825,13 @@ export class WorkoutEngine {
 
   buildWorkoutMediaMessage(workout: CurrentWorkout): string {
     const mainExercises = workout.exercises.filter((item) => item.notes !== "Warm-up");
+    const formatFormLinks = (
+      exercise: CurrentWorkout["exercises"][number]["exercise"]
+    ) => {
+      const gifLabel = exercise.gifLabel ?? "image search";
+      const demoLabel = exercise.demoLabel ?? "video search";
+      return `<${exercise.gifUrl}|${gifLabel}> | <${exercise.demoUrl}|${demoLabel}>`;
+    };
     const lines = mainExercises.map((item) => {
       const cues = (
         item.exercise.cues?.length
@@ -844,7 +858,7 @@ export class WorkoutEngine {
         `_Setup:_ ${setup}`,
         cues ? `_Cues:_\n${cues}` : null,
         mistakes ? `_Avoid:_\n${mistakes}` : null,
-        `_Form:_ <${item.exercise.gifUrl}|GIF> | <${item.exercise.demoUrl}|video>`
+        `_Form:_ ${formatFormLinks(item.exercise)}`
       ]
         .filter(Boolean)
         .join("\n");
@@ -852,7 +866,8 @@ export class WorkoutEngine {
 
     return [
       `🎞️ *Form guide for ${workout.name}*`,
-      "Use this as a quick reference while lifting. Keep the written strength plan as the source of truth.",
+      "Use this as a quick reference while lifting. Exact reviewed media is labeled as GIF/video; unreviewed media is labeled as search.",
+      "Keep the written strength plan as the source of truth.",
       ...lines
     ].join("\n\n");
   }

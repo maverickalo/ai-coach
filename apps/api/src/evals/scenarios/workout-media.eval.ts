@@ -6,13 +6,22 @@ const engine = new WorkoutEngine({} as never);
 
 export const workoutMediaScenarios: EvalScenario[] = [
   {
-    name: "workout GIF request returns all main exercise media",
+    name: "workout media request labels unreviewed links as search",
     run: () => ({
       reply: engine.buildWorkoutMediaMessage(pushWorkout),
       actions: []
     }),
     expect: {
-      replyIncludes: ["🎞️", "Form guide for Push", "Bench Press", "_Setup:_", "_Cues:_", "GIF", "video"],
+      replyIncludes: [
+        "🎞️",
+        "Form guide for Push",
+        "Bench Press",
+        "_Setup:_",
+        "_Cues:_",
+        "image search",
+        "video search",
+        "unreviewed media is labeled as search"
+      ],
       replyExcludes: ["replace today's workout"]
     }
   }

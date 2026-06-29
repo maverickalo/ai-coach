@@ -154,7 +154,12 @@ export class WorkoutCheckInScheduler {
       : "";
     const cues = nextExercise?.exercise.cues?.slice(0, 2).join(" • ");
     const demo = nextExercise?.exercise.demoUrl
-      ? `\n_Form:_ <${nextExercise.exercise.gifUrl}|GIF> | <${nextExercise.exercise.demoUrl}|video>`
+      ? [
+          "\n_Form:_",
+          `<${nextExercise.exercise.gifUrl}|${nextExercise.exercise.gifLabel ?? "image search"}>`,
+          "|",
+          `<${nextExercise.exercise.demoUrl}|${nextExercise.exercise.demoLabel ?? "video search"}>`
+        ].join(" ")
       : "";
     const progress =
       state && (state.completedExercises.length > 0 || state.skippedExercises.length > 0)

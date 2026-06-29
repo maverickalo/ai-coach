@@ -37,6 +37,10 @@ export interface Exercise {
   demoUrl: string;
   gifUrl: string;
   gifSearchUrl: string;
+  demoLabel?: string | undefined;
+  gifLabel?: string | undefined;
+  demoIsExact?: boolean | undefined;
+  gifIsExact?: boolean | undefined;
   purpose?: string | undefined;
   setup?: string | undefined;
   cues?: string[] | undefined;

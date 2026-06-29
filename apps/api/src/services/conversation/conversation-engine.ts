@@ -487,6 +487,9 @@ export class ConversationEngine {
       };
     }
 
+    const gifLabel = exercise.exercise.gifLabel ?? "image search";
+    const demoLabel = exercise.exercise.demoLabel ?? "video search";
+
     return {
       intent: "answer_exercise_question",
       actions: [],
@@ -505,7 +508,10 @@ export class ConversationEngine {
                 .map((mistake) => `• ${mistake}`)
             ].join("\n")
           : null,
-        `_Form:_ <${exercise.exercise.gifUrl}|GIF> | <${exercise.exercise.demoUrl}|video>`
+        `_Form:_ <${exercise.exercise.gifUrl}|${gifLabel}> | <${exercise.exercise.demoUrl}|${demoLabel}>`,
+        exercise.exercise.gifIsExact || exercise.exercise.demoIsExact
+          ? null
+          : "_Note:_ These are search links, not vetted one-to-one media yet."
       ]
         .filter(Boolean)
         .join("\n")
