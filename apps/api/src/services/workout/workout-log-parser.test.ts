@@ -118,6 +118,17 @@ describe("parseWorkoutLogFallback", () => {
       })
     ]);
   });
+
+  it("parses skip commands without requiring past tense", () => {
+    const parsed = parseWorkoutLogFallback("skip step-ups", workout);
+
+    expect(parsed.exercises).toEqual([
+      expect.objectContaining({
+        exerciseName: "Box Step-Up",
+        status: "skipped"
+      })
+    ]);
+  });
 });
 
 describe("findMissingExercises", () => {

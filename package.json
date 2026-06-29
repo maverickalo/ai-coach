@@ -16,6 +16,7 @@
     "lint": "pnpm --filter @coach-ai/api lint && pnpm --filter @coach-ai/web lint",
     "typecheck": "pnpm --filter @coach-ai/api typecheck && pnpm --filter @coach-ai/web typecheck",
     "test": "pnpm --filter @coach-ai/api test",
+    "evals": "pnpm --filter @coach-ai/api evals",
     "db:generate": "pnpm --filter @coach-ai/api db:generate",
     "db:migrate": "pnpm --filter @coach-ai/api db:migrate",
     "db:push": "pnpm --filter @coach-ai/api db:push",

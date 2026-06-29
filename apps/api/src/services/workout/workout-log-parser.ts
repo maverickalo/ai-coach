@@ -181,7 +181,7 @@ export function parseWorkoutLogFallback(
 
   for (const segment of segments) {
     const skippedMatch = segment.match(
-      /(?:skipped?|done except|except)\s+(?:the\s+)?(.+)$/i
+      /(?:skip|skipped|skipping|done except|except)\s+(?:the\s+)?(.+)$/i
     );
     if (skippedMatch?.[1]) {
       const [rawExercise, ...reasonParts] = skippedMatch[1].split(/\s+because\s+/i);

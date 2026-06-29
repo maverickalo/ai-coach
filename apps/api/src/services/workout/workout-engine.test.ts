@@ -59,13 +59,14 @@ const workout: CurrentWorkout = {
 };
 
 describe("workout engine deterministic session adjustments", () => {
-  it("turns a workout into a HYROX-biased circuit when requested", () => {
+  it("keeps strength as source of truth when cardio or HYROX is requested", () => {
     const engine = new WorkoutEngine({} as never);
     const message = engine.buildSessionAdjustmentMessage(workout, "hyrox");
 
-    expect(message).toContain("HYROX-biased version");
-    expect(message).toContain("400m controlled run");
+    expect(message).toContain("Optional HYROX/cardio add-on");
+    expect(message).toContain("Keep the strength plan unchanged");
     expect(message).toContain("Back Squat");
-    expect(message).toContain("Keep runs controlled");
+    expect(message).toContain("Do not cut the main strength work");
+    expect(message).not.toContain("HYROX-biased version");
   });
 });

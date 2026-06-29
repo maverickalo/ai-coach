@@ -43,7 +43,7 @@ function isExerciseDemoRequest(body: string): boolean {
   return /\b(gif|demo|video|show me|how do i|how to)\b/i.test(body);
 }
 
-function getRequestedSessionShape(
+export function getRequestedSessionShape(
   body: string
 ): "short" | "standard" | "long" | "strength" | "hyrox" | null {
   const normalized = body.trim().toLowerCase();
@@ -59,7 +59,11 @@ function getRequestedSessionShape(
   if (/^(strength|strength bias|strength-biased)$/i.test(normalized)) {
     return "strength";
   }
-  if (/^(hyrox|cardio|circuit)$|hyrox.*(version|style|bias)|more cardio/i.test(normalized)) {
+  if (
+    /^(hyrox|cardio|circuit)$|hyrox.*(version|style|bias|add|added)|cardio.*(look|add|added|option|optional)|more cardio/i.test(
+      normalized
+    )
+  ) {
     return "hyrox";
   }
   return null;
@@ -67,6 +71,12 @@ function getRequestedSessionShape(
 
 function isMissedDayRequest(body: string): boolean {
   return /\b(missed|skipped|forgot|didn't do|did not do)\b.*\b(day|workout|yesterday|session)\b/i.test(body);
+}
+
+export function isCurrentExerciseSkipRequest(body: string): boolean {
+  return /^\s*(skip|skipping|skipped)(\s+(it|this|that|for now))?\s*[.!?]?\s*$/i.test(
+    body
+  );
 }
 
 export class ConversationEngine {
@@ -144,6 +154,8 @@ export class ConversationEngine {
       const context = await this.contextBuilder.build(input.userId);
       if (isWorkoutStartMessage(input.body)) {
         result = await this.handleWorkoutStarted(input.userId, context);
+      } else if (isCurrentExerciseSkipRequest(input.body)) {
+        result = await this.handleCurrentExerciseSkipped(input.userId, context);
       } else if (isExerciseDemoRequest(input.body)) {
         result = this.handleExerciseDemoRequest(input.body, context);
       } else if (getRequestedSessionShape(input.body)) {
@@ -323,6 +335,57 @@ export class ConversationEngine {
       intent: "general_chat",
       actions: [],
       reply: `Good. Start with ${firstMainExercise?.exercise.name ?? "the first main lift"}. I'll check in about every ${env.WORKOUT_CHECK_IN_INTERVAL_MINUTES} minutes and ask how the work is going.`
+    };
+  }
+
+  private async handleCurrentExerciseSkipped(
+    userId: string,
+    context: Awaited<ReturnType<CoachContextBuilder["build"]>>
+  ): Promise<CoachResult> {
+    if (!context.currentWorkout) {
+      return {
+        intent: "log_workout",
+        actions: [],
+        reply:
+          "What are we skipping? I do not see an active workout for today yet."
+      };
+    }
+
+    const exerciseName = await this.workoutEngine.getLastCheckInExerciseName(
+      context.currentWorkout.id
+    );
+
+    if (!exerciseName) {
+      return {
+        intent: "log_workout",
+        actions: [],
+        reply:
+          "Which exercise are we skipping? Send it like `skip bench` or `skip step-ups`."
+      };
+    }
+
+    await this.workoutEngine.logExercise(userId, context.currentWorkout.id, {
+      exerciseName,
+      status: "skipped",
+      sets: null,
+      reps: null,
+      weight: null,
+      rpe: null,
+      difficulty: null,
+      skippedReason: null,
+      substituteExerciseName: null,
+      notes: "Skipped after coach check-in"
+    });
+
+    await this.workoutEngine.updateWorkoutStatus(
+      context.currentWorkout.id,
+      "partially_completed"
+    );
+
+    return {
+      intent: "log_workout",
+      actions: [],
+      reply: `Logged ${exerciseName} as skipped. Was that because of time, discomfort, or preference?`
     };
   }
 

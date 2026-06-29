@@ -346,6 +346,23 @@ export class WorkoutEngine {
     return rows.map((row) => row.name);
   }
 
+  async getLastCheckInExerciseName(workoutId: string): Promise<string | null> {
+    const [event] = await this.db
+      .select({ payload: coachEvents.payload })
+      .from(coachEvents)
+      .where(
+        and(
+          eq(coachEvents.workoutId, workoutId),
+          eq(coachEvents.eventType, "WorkoutCheckInSent")
+        )
+      )
+      .orderBy(desc(coachEvents.createdAt))
+      .limit(1);
+
+    const exerciseName = event?.payload.exerciseName;
+    return typeof exerciseName === "string" ? exerciseName : null;
+  }
+
   async getLastExercisePerformance(
     userId: string,
     exerciseName: string,
@@ -483,7 +500,7 @@ export class WorkoutEngine {
       workout.estimatedMinutes
         ? `*Estimated:* ${workout.estimatedMinutes} minutes`
         : null,
-      "*Before we lock it in:* reply `short`, `standard`, `long`, `strength`, or `HYROX` and I'll adjust today's layout.",
+      "*Strength is the source of truth.* Reply `short`, `standard`, or `long` to scale the lifting plan. Reply `cardio` or `HYROX` and I'll add an optional conditioning block without replacing the strength work.",
       "*Main work*",
       mainWork,
       conditioning,
@@ -522,10 +539,10 @@ export class WorkoutEngine {
     if (shape === "long") {
       return [
         `Long version for *${workout.name}*:`,
-        `Run the full strength session: ${names.join(", ")}.`,
+        `Keep the full strength session: ${names.join(", ")}.`,
         "Add one back-off set on the first two main lifts if RPE is 7 or lower.",
         conditioning
-          ? `Then extend conditioning: ${conditioning.prescription}`
+          ? `Optional conditioning add-on: ${conditioning.prescription}`
           : "Finish with 15-25 minutes easy aerobic work.",
         "Keep the extra work smooth. No max-effort sets today."
       ].join("\n");
@@ -544,24 +561,17 @@ export class WorkoutEngine {
     }
 
     if (shape === "hyrox") {
-      const stations = mainExercises.slice(0, 5);
-      const circuit = stations
-        .map((item, index) => {
-          const runPiece = conditioning?.mode === "row" || conditioning?.mode === "bike"
-            ? index % 2 === 0
-              ? "500m row or 2 min Assault Bike"
-              : "easy 400m treadmill"
-            : "400m controlled run";
-          return `${index + 1}. ${runPiece} + ${item.exercise.name} ${item.prescribedSets ?? 3}x${item.prescribedReps ?? "quality reps"}`;
-        })
-        .join("\n");
-
       return [
-        `HYROX-biased version for *${workout.name}*:`,
-        circuit,
-        conditioning ? `Why this setup: ${conditioning.reason}` : null,
+        `Optional HYROX/cardio add-on for *${workout.name}*:`,
+        `Keep the strength plan unchanged: ${names.join(", ")}.`,
+        "After the main strength work, choose one add-on:",
+        "1. Run add-on: 3-5 rounds of 400m controlled run, 60-90 sec easy walk.",
+        "2. Low-impact add-on: 4 rounds of 500m row or 2 min Assault Bike, easy between rounds.",
+        "3. HYROX finisher: 3 rounds of 400m run, 20 wall balls, 20 slam balls, farmer carry.",
+        conditioning ? `Best fit today: ${conditioning.prescription}` : null,
+        conditioning ? `Why: ${conditioning.reason}` : null,
         conditioning?.caution ? `Watch-out: ${conditioning.caution}` : null,
-        "Keep runs controlled. This should feel like compromised strength practice, not a race."
+        "This is optional. Do not cut the main strength work unless you also ask for a short version."
       ]
         .filter(Boolean)
         .join("\n");

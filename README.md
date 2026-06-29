@@ -269,11 +269,16 @@ you and to mention you in scheduled reminders.
 pnpm lint
 pnpm typecheck
 pnpm test
+pnpm evals
 pnpm build
 ```
 
 Tests cover deterministic commands, progression rules, timezone workout
 selection, fallback workout parsing, pain detection, and missing exercises.
+Evals cover coaching behavior that should not regress: strength as the source
+of truth, cardio/HYROX as optional add-ons, skip handling, pain safety,
+progression, workout logging, and check-in flow. See
+[docs/evals.md](docs/evals.md).
 
 ## Railway deployment
 
