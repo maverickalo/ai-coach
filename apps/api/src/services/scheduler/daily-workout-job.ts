@@ -1,4 +1,4 @@
-import { and, asc, eq, or } from "drizzle-orm";
+import { and, asc, desc, eq, or } from "drizzle-orm";
 import type { Database } from "../../db/index.js";
 import {
   conversations,
@@ -77,42 +77,58 @@ export class DailyWorkoutJob {
     }> = [];
 
     if (this.delivery.slack) {
-      const text = this.delivery.slack.mentionUserId
-        ? `<@${this.delivery.slack.mentionUserId}> ${body}`
-        : body;
-      const sent = await this.delivery.slack.client.postMessage({
-        channel: this.delivery.slack.channelId,
-        text
-      });
-      deliveries.push({
-        channel: "slack",
-        externalId: sent.externalId,
-        status: sent.status
-      });
-      await this.storeOutboundMessage(user.id, "slack", text, {
-        providerMessageId: sent.externalId,
-        providerStatus: sent.status,
-        workoutId: workout.id
-      });
+      if (await this.hasReminderBeenSent(user.id, "slack", workout.id)) {
+        deliveries.push({
+          channel: "slack",
+          externalId: "already-sent",
+          status: "skipped"
+        });
+      } else {
+        const text = this.delivery.slack.mentionUserId
+          ? `<@${this.delivery.slack.mentionUserId}> ${body}`
+          : body;
+        const sent = await this.delivery.slack.client.postMessage({
+          channel: this.delivery.slack.channelId,
+          text
+        });
+        deliveries.push({
+          channel: "slack",
+          externalId: sent.externalId,
+          status: sent.status
+        });
+        await this.storeOutboundMessage(user.id, "slack", text, {
+          providerMessageId: sent.externalId,
+          providerStatus: sent.status,
+          workoutId: workout.id
+        });
+      }
     }
 
     if (this.delivery.email) {
-      const sent = await this.delivery.email.client.send({
-        from: this.delivery.email.from,
-        to: this.delivery.email.to,
-        subject: `Coach AI: ${workout.name}`,
-        text: body
-      });
-      deliveries.push({
-        channel: "email",
-        externalId: sent.externalId,
-        status: sent.status
-      });
-      await this.storeOutboundMessage(user.id, "email", body, {
-        providerMessageId: sent.externalId,
-        providerStatus: sent.status,
-        workoutId: workout.id
-      });
+      if (await this.hasReminderBeenSent(user.id, "email", workout.id)) {
+        deliveries.push({
+          channel: "email",
+          externalId: "already-sent",
+          status: "skipped"
+        });
+      } else {
+        const sent = await this.delivery.email.client.send({
+          from: this.delivery.email.from,
+          to: this.delivery.email.to,
+          subject: `Coach AI: ${workout.name}`,
+          text: body
+        });
+        deliveries.push({
+          channel: "email",
+          externalId: sent.externalId,
+          status: sent.status
+        });
+        await this.storeOutboundMessage(user.id, "email", body, {
+          providerMessageId: sent.externalId,
+          providerStatus: sent.status,
+          workoutId: workout.id
+        });
+      }
     }
 
     return {
@@ -136,6 +152,53 @@ export class DailyWorkoutJob {
       intent: "daily_workout",
       metadata
     });
+  }
+
+  private async hasReminderBeenSent(
+    userId: string,
+    channel: "slack" | "email",
+    workoutId: string
+  ): Promise<boolean> {
+    const conversationId = await this.findConversationId(userId, channel);
+    if (!conversationId) {
+      return false;
+    }
+
+    const recentMessages = await this.db
+      .select({ metadata: messages.metadata })
+      .from(messages)
+      .where(
+        and(
+          eq(messages.conversationId, conversationId),
+          eq(messages.direction, "outbound"),
+          eq(messages.intent, "daily_workout")
+        )
+      )
+      .orderBy(desc(messages.createdAt))
+      .limit(50);
+
+    return recentMessages.some(
+      (message) => message.metadata.workoutId === workoutId
+    );
+  }
+
+  private async findConversationId(
+    userId: string,
+    channel: "slack" | "email"
+  ): Promise<string | null> {
+    const [existing] = await this.db
+      .select()
+      .from(conversations)
+      .where(
+        and(
+          eq(conversations.userId, userId),
+          eq(conversations.channel, channel)
+        )
+      )
+      .orderBy(asc(conversations.createdAt))
+      .limit(1);
+
+    return existing?.id ?? null;
   }
 
   private async getConversationId(

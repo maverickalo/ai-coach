@@ -19,10 +19,12 @@ Web or Slack message
   -> JSON response or Slack reply
 ```
 
-Scheduled messages use the same domain services:
+Scheduled messages use the same domain services. For the MVP, the API process
+checks the configured local send time once per minute and invokes the daily job
+when due:
 
 ```text
-Railway scheduler
+API daily reminder scheduler
   -> Daily Workout or Weekly Review Job
   -> Workout Engine / OpenAI
   -> Slack channel post and/or email reminder
@@ -159,6 +161,8 @@ Files: `src/services/scheduler`
 
 - Daily job creates today's workout if missing, sends a concise reminder, and
   stores the outbound message.
+- Daily scheduler runs inside the API process in production and calls the daily
+  job at `DAILY_WORKOUT_SEND_TIME` in `COACH_TIMEZONE`.
 - Weekly job gathers the previous local week, generates a review, stores it,
   and sends it.
 - Jobs deliver to Slack and/or email when those reminder channels are

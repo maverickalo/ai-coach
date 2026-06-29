@@ -126,6 +126,11 @@ Set `SLACK_CHANNEL_ID` to post scheduled reminders into a dedicated Slack
 channel. Email reminders are optional and require `RESEND_API_KEY`,
 `REMINDER_EMAIL_FROM`, and `REMINDER_EMAIL_TO`.
 
+In production, the API process checks `DAILY_WORKOUT_SEND_TIME` once per minute
+in `COACH_TIMEZONE` and posts the daily reminder through configured delivery
+channels. The daily job is idempotent per workout/channel, so restarts do not
+spam duplicate reminders.
+
 In Supabase Auth, enable email magic links and add these redirect URLs:
 
 ```text
@@ -271,8 +276,8 @@ API service:
    `https://YOUR-RAILWAY-DOMAIN/slack/events`
 8. Set `SLACK_CHANNEL_ID` for scheduled Slack reminders.
 9. Optionally set Resend variables for email reminders.
-10. Invoke job routes from a scheduler with `x-job-secret`, or create
-   dedicated Railway cron services that call the same job classes.
+10. The API process runs daily reminders automatically in production. The
+   protected job routes can still be called manually with `x-job-secret`.
 
 Web service:
 

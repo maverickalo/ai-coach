@@ -16,6 +16,7 @@ import { CoachEngine } from "./services/coach/coach-engine.js";
 import { ConversationEngine } from "./services/conversation/conversation-engine.js";
 import { MemoryEngine } from "./services/memory/memory-engine.js";
 import { OpenAiClient } from "./services/openai/openai.client.js";
+import { DailyReminderScheduler } from "./services/scheduler/daily-reminder-scheduler.js";
 import { DailyWorkoutJob } from "./services/scheduler/daily-workout-job.js";
 import { WeeklyReviewJob } from "./services/scheduler/weekly-review-job.js";
 import { WorkoutEngine } from "./services/workout/workout-engine.js";
@@ -135,7 +136,28 @@ export async function buildApp() {
     jobsRoutes(scope, { dailyWorkout, weeklyReview })
   );
 
+  const owner = {
+    ...(env.COACH_OWNER_PHONE_NUMBER
+      ? { phoneNumber: env.COACH_OWNER_PHONE_NUMBER }
+      : {}),
+    ...(env.COACH_OWNER_EMAIL ? { email: env.COACH_OWNER_EMAIL } : {})
+  };
+  const hasOwner = Boolean(owner.phoneNumber || owner.email);
+  const hasDelivery = Boolean(delivery.slack || delivery.email);
+  const dailyReminderScheduler =
+    env.NODE_ENV === "production" && hasOwner && hasDelivery
+      ? new DailyReminderScheduler(dailyWorkout, {
+          owner,
+          timezone: env.COACH_TIMEZONE,
+          sendTime: env.DAILY_WORKOUT_SEND_TIME,
+          logger: app.log
+        })
+      : null;
+
+  dailyReminderScheduler?.start();
+
   app.addHook("onClose", async () => {
+    dailyReminderScheduler?.stop();
     await database.close();
   });
 

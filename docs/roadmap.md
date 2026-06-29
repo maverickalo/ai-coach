@@ -61,10 +61,10 @@ Status: implemented
 - Slack and optional email delivery
 - outbound message storage
 - `/jobs/send-daily-workout`
+- in-process production daily reminder scheduler
 
 Remaining:
 
-- configure the actual Railway schedule
 - add delivery retries and alerting
 
 ## Milestone 4: Conversation and OpenAI
@@ -133,7 +133,6 @@ Status: implemented; requires production channel configuration
 Remaining:
 
 - configure `SLACK_CHANNEL_ID`
-- configure Railway schedule
 - error queue and alerting
 
 ## Milestone 8: Weekly review and operations
