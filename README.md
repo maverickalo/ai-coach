@@ -94,7 +94,7 @@ DATABASE_URL=
 SUPABASE_URL=
 SUPABASE_PUBLISHABLE_KEY=
 OPENAI_API_KEY=
-OPENAI_MODEL=gpt-5.3
+OPENAI_MODEL=gpt-5.4-mini
 TWILIO_ACCOUNT_SID=
 TWILIO_AUTH_TOKEN=
 TWILIO_MESSAGING_SERVICE_SID=
@@ -216,17 +216,29 @@ In production, job routes require the `x-job-secret` header matching
 
 ## Personal Slack setup
 
-Create a Slack app for your workspace, add the `chat:write` bot scope, install
-it, and set the Events API request URL to:
+Create a Slack app for your workspace and add these bot scopes:
+
+- `chat:write`
+- `im:history`
+- `im:read`
+- `im:write`
+- `app_mentions:read`
+
+Install it, then set the Events API request URL to:
 
 ```text
 https://coach-api-production-57a6.up.railway.app/slack/events
 ```
 
-Subscribe the bot to message events you want to support, such as direct
-messages. Set `SLACK_SIGNING_SECRET` and `SLACK_BOT_TOKEN` on Railway. Set
-`SLACK_ALLOWED_USER_ID` to your Slack user ID to keep the personal bot locked
-to you.
+Subscribe the bot to:
+
+- `message.im` for direct messages
+- `app_mention` for channel conversations
+
+For a dedicated channel, create the channel, invite the app, and mention it with
+`@Coach AI`. Set `SLACK_SIGNING_SECRET` and `SLACK_BOT_TOKEN` on Railway. Set
+`SLACK_ALLOWED_USER_ID` to your Slack user ID to keep the personal bot locked to
+you.
 
 ## Quality commands
 

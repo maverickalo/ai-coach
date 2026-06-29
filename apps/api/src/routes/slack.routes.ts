@@ -16,14 +16,22 @@ const slackUrlVerificationSchema = z.object({
 const slackEventSchema = z.object({
   type: z.literal("event_callback"),
   event_id: z.string().min(1),
-  event: z.object({
-    type: z.literal("message"),
-    channel: z.string().min(1),
-    user: z.string().min(1).optional(),
-    bot_id: z.string().optional(),
-    subtype: z.string().optional(),
-    text: z.string().trim().min(1).max(4000)
-  })
+  event: z.union([
+    z.object({
+      type: z.literal("message"),
+      channel: z.string().min(1),
+      user: z.string().min(1).optional(),
+      bot_id: z.string().optional(),
+      subtype: z.string().optional(),
+      text: z.string().trim().min(1).max(4000)
+    }),
+    z.object({
+      type: z.literal("app_mention"),
+      channel: z.string().min(1),
+      user: z.string().min(1).optional(),
+      text: z.string().trim().min(1).max(4000)
+    })
+  ])
 });
 
 type RawBodyRequest = FastifyRequest & { rawBody?: string };
@@ -92,7 +100,10 @@ export async function slackRoutes(
     }
 
     const event = parsed.data.event;
-    if (event.bot_id || event.subtype) {
+    if (
+      event.type === "message" &&
+      (event.bot_id || event.subtype)
+    ) {
       return { ok: true };
     }
 
@@ -121,9 +132,18 @@ export async function slackRoutes(
     });
 
     const owner = await findOwnerUser(dependencies.db);
+    const messageText =
+      event.type === "app_mention"
+        ? event.text.replace(/<@[A-Z0-9]+>\s*/g, "").trim()
+        : event.text;
+
+    if (!messageText) {
+      return { ok: true };
+    }
+
     const result = await dependencies.conversation.handleSlackMessage(
       owner.id,
-      event.text
+      messageText
     );
 
     await new SlackClient(env.SLACK_BOT_TOKEN).postMessage({

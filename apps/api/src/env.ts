@@ -10,7 +10,7 @@ const envSchema = z.object({
   SUPABASE_URL: z.string().url().optional(),
   SUPABASE_PUBLISHABLE_KEY: optionalSecret,
   OPENAI_API_KEY: optionalSecret,
-  OPENAI_MODEL: z.string().trim().min(1).default("gpt-5.3"),
+  OPENAI_MODEL: z.string().trim().min(1).default("gpt-5.4-mini"),
   TWILIO_ACCOUNT_SID: optionalSecret,
   TWILIO_AUTH_TOKEN: optionalSecret,
   TWILIO_MESSAGING_SERVICE_SID: optionalSecret,

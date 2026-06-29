@@ -214,7 +214,8 @@ Returns:
 - Accepts Slack Events API requests.
 - Verifies `X-Slack-Signature` and `X-Slack-Request-Timestamp`.
 - Returns URL verification challenges for Slack app setup.
-- Ignores bot/subtype events to avoid reply loops.
+- Handles direct `message.im` events and channel `app_mention` events.
+- Ignores bot/subtype message events to avoid reply loops.
 - Optionally restricts access to `SLACK_ALLOWED_USER_ID`.
 
 ### `POST /dev/simulate-message`
