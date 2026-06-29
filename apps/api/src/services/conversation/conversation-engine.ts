@@ -35,6 +35,14 @@ const HELP_REPLY =
 const STOP_REPLY =
   "Coach AI: Reminders are paused. Reply START when you want them back on.";
 
+function isWorkoutStartMessage(body: string): boolean {
+  return /\b(starting|start|started|begin|beginning)\b/i.test(body);
+}
+
+function isExerciseDemoRequest(body: string): boolean {
+  return /\b(gif|demo|video|show me|how do i|how to)\b/i.test(body);
+}
+
 export class ConversationEngine {
   constructor(
     private readonly db: Database,
@@ -108,47 +116,53 @@ export class ConversationEngine {
       );
     } else {
       const context = await this.contextBuilder.build(input.userId);
-      const intent = await classifyIntent(input.body, this.openai);
-      const shouldParse =
-        intent === "log_workout" ||
-        intent === "report_pain" ||
-        intent === "request_substitution";
-      const parsedWorkout = shouldParse
-        ? await parseWorkoutLog(
-            input.body,
-            context.currentWorkout,
-            this.openai.configured ? this.openai : undefined
-          )
-        : null;
+      if (isWorkoutStartMessage(input.body)) {
+        result = await this.handleWorkoutStarted(input.userId, context);
+      } else if (isExerciseDemoRequest(input.body)) {
+        result = this.handleExerciseDemoRequest(input.body, context);
+      } else {
+        const intent = await classifyIntent(input.body, this.openai);
+        const shouldParse =
+          intent === "log_workout" ||
+          intent === "report_pain" ||
+          intent === "request_substitution";
+        const parsedWorkout = shouldParse
+          ? await parseWorkoutLog(
+              input.body,
+              context.currentWorkout,
+              this.openai.configured ? this.openai : undefined
+            )
+          : null;
 
-      result = await this.coachEngine.respond({
-        message: input.body,
-        intent,
-        context,
-        parsedWorkout
-      });
+        result = await this.coachEngine.respond({
+          message: input.body,
+          intent,
+          context,
+          parsedWorkout
+        });
 
-      await this.applyActions(
-        input.userId,
-        context.currentWorkout?.id ?? null,
-        result.actions
-      );
-
-      if (context.currentWorkout && parsedWorkout) {
-        const status =
-          parsedWorkout.workoutCompletion === "complete"
-            ? "completed"
-            : parsedWorkout.workoutCompletion === "partial" ||
-                parsedWorkout.exercises.some(
-                  (entry) =>
-                    entry.status === "skipped" || entry.status === "partial"
-                )
-              ? "partially_completed"
-              : "in_progress";
-        await this.workoutEngine.updateWorkoutStatus(
-          context.currentWorkout.id,
-          status
+        await this.applyActions(
+          input.userId,
+          context.currentWorkout?.id ?? null,
+          result.actions
         );
+
+        if (context.currentWorkout && parsedWorkout) {
+          const status =
+            parsedWorkout.workoutCompletion === "complete"
+              ? "completed"
+              : parsedWorkout.workoutCompletion === "partial" ||
+                  parsedWorkout.exercises.some(
+                    (entry) =>
+                      entry.status === "skipped" || entry.status === "partial"
+                  )
+                ? "partially_completed"
+                : "in_progress";
+          await this.workoutEngine.updateWorkoutStatus(
+            context.currentWorkout.id,
+            status
+          );
+        }
       }
     }
 
@@ -242,6 +256,71 @@ export class ConversationEngine {
     }
 
     return { intent, actions: [], reply: HELP_REPLY };
+  }
+
+  private async handleWorkoutStarted(
+    userId: string,
+    context: Awaited<ReturnType<CoachContextBuilder["build"]>>
+  ): Promise<CoachResult> {
+    if (!context.currentWorkout) {
+      return {
+        intent: "general_chat",
+        actions: [],
+        reply:
+          "I don't see a workout assigned for today yet. Ask me for today's workout first, then tell me when you're starting."
+      };
+    }
+
+    await this.workoutEngine.updateWorkoutStatus(
+      context.currentWorkout.id,
+      "in_progress"
+    );
+    await this.db.insert(coachEvents).values({
+      userId,
+      workoutId: context.currentWorkout.id,
+      eventType: "WorkoutStarted",
+      payload: {
+        source: "conversation",
+        checkInIntervalMinutes: env.WORKOUT_CHECK_IN_INTERVAL_MINUTES
+      }
+    });
+
+    const firstMainExercise = context.currentWorkout.exercises.find(
+      (item) => item.notes !== "Warm-up"
+    );
+
+    return {
+      intent: "general_chat",
+      actions: [],
+      reply: `Good. Start with ${firstMainExercise?.exercise.name ?? "the first main lift"}. I'll check in about every ${env.WORKOUT_CHECK_IN_INTERVAL_MINUTES} minutes and ask how the work is going.`
+    };
+  }
+
+  private handleExerciseDemoRequest(
+    body: string,
+    context: Awaited<ReturnType<CoachContextBuilder["build"]>>
+  ): CoachResult {
+    const normalizedBody = body.toLowerCase();
+    const exercise = context.currentWorkout?.exercises.find((item) => {
+      const name = item.exercise.name.toLowerCase();
+      const firstWord = name.split(" ")[0] ?? name;
+      return normalizedBody.includes(name) || normalizedBody.includes(firstWord);
+    });
+
+    if (!exercise) {
+      return {
+        intent: "answer_exercise_question",
+        actions: [],
+        reply:
+          "Which exercise do you want a demo for? Send something like \"show me RDL\" or \"bench gif\"."
+      };
+    }
+
+    return {
+      intent: "answer_exercise_question",
+      actions: [],
+      reply: `${exercise.exercise.name} demo: ${exercise.exercise.demoUrl}`
+    };
   }
 
   private async applyActions(

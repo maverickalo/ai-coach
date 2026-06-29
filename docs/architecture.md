@@ -163,6 +163,8 @@ Files: `src/services/scheduler`
   stores the outbound message.
 - Daily scheduler runs inside the API process in production and calls the daily
   job at `DAILY_WORKOUT_SEND_TIME` in `COACH_TIMEZONE`.
+- Workout check-in scheduler asks about the next unlogged main exercise during
+  active workouts and includes the exercise demo link.
 - Weekly job gathers the previous local week, generates a review, stores it,
   and sends it.
 - Jobs deliver to Slack and/or email when those reminder channels are

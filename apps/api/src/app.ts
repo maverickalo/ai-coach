@@ -19,6 +19,7 @@ import { OpenAiClient } from "./services/openai/openai.client.js";
 import { DailyReminderScheduler } from "./services/scheduler/daily-reminder-scheduler.js";
 import { DailyWorkoutJob } from "./services/scheduler/daily-workout-job.js";
 import { WeeklyReviewJob } from "./services/scheduler/weekly-review-job.js";
+import { WorkoutCheckInScheduler } from "./services/scheduler/workout-check-in-scheduler.js";
 import { WorkoutEngine } from "./services/workout/workout-engine.js";
 import { WebPortalService } from "./services/web/web-portal-service.js";
 import { loggerOptions } from "./utils/logger.js";
@@ -153,11 +154,20 @@ export async function buildApp() {
           logger: app.log
         })
       : null;
+  const workoutCheckInScheduler =
+    env.NODE_ENV === "production" && slackDelivery
+      ? new WorkoutCheckInScheduler(database.db, workoutEngine, slackDelivery, {
+          intervalMinutes: env.WORKOUT_CHECK_IN_INTERVAL_MINUTES,
+          logger: app.log
+        })
+      : null;
 
   dailyReminderScheduler?.start();
+  workoutCheckInScheduler?.start();
 
   app.addHook("onClose", async () => {
     dailyReminderScheduler?.stop();
+    workoutCheckInScheduler?.stop();
     await database.close();
   });
 

@@ -131,6 +131,10 @@ in `COACH_TIMEZONE` and posts the daily reminder through configured delivery
 channels. The daily job is idempotent per workout/channel, so restarts do not
 spam duplicate reminders.
 
+Daily workout posts and in-session check-ins include exercise demo links for
+the relevant movements. You can also ask Slack for a demo directly with
+messages like `bench gif`, `show me RDL`, or `how do I do step-ups`.
+
 In Supabase Auth, enable email magic links and add these redirect URLs:
 
 ```text

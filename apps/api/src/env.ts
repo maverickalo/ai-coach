@@ -27,6 +27,11 @@ const envSchema = z.object({
     .string()
     .regex(/^\d{2}:\d{2}$/)
     .default("06:30"),
+  WORKOUT_CHECK_IN_INTERVAL_MINUTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(10),
   INTERNAL_JOB_SECRET: optionalSecret
 });
 

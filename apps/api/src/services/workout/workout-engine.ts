@@ -283,6 +283,56 @@ export class WorkoutEngine {
       .where(eq(workouts.id, workoutId));
   }
 
+  async getWorkoutById(workoutId: string): Promise<CurrentWorkout | null> {
+    const [workout] = await this.db
+      .select({ userId: workouts.userId, scheduledDate: workouts.scheduledDate })
+      .from(workouts)
+      .where(eq(workouts.id, workoutId))
+      .limit(1);
+
+    if (!workout) {
+      return null;
+    }
+
+    return this.getWorkoutByDate(workout.userId, workout.scheduledDate);
+  }
+
+  async getLoggedExerciseNames(workoutId: string): Promise<string[]> {
+    const rows = await this.db
+      .select({ name: exercises.name })
+      .from(exerciseLogs)
+      .innerJoin(exercises, eq(exerciseLogs.exerciseId, exercises.id))
+      .where(eq(exerciseLogs.workoutId, workoutId));
+
+    return rows.map((row) => row.name);
+  }
+
+  async getLastExercisePerformance(userId: string, exerciseName: string) {
+    const [last] = await this.db
+      .select({
+        scheduledDate: workouts.scheduledDate,
+        status: exerciseLogs.status,
+        sets: exerciseLogs.setsCompleted,
+        reps: exerciseLogs.repsCompleted,
+        weight: exerciseLogs.weight,
+        rpe: exerciseLogs.rpe,
+        notes: exerciseLogs.notes
+      })
+      .from(exerciseLogs)
+      .innerJoin(exercises, eq(exerciseLogs.exerciseId, exercises.id))
+      .innerJoin(workouts, eq(exerciseLogs.workoutId, workouts.id))
+      .where(
+        and(
+          eq(workouts.userId, userId),
+          ilike(exercises.name, exerciseName)
+        )
+      )
+      .orderBy(desc(workouts.scheduledDate), desc(exerciseLogs.updatedAt))
+      .limit(1);
+
+    return last ?? null;
+  }
+
   buildDailyWorkoutMessage(
     displayName: string | null,
     workout: CurrentWorkout
@@ -295,11 +345,17 @@ export class WorkoutEngine {
           item.prescribedSets,
           item.prescribedReps
         ].filter(Boolean);
-        return `${item.exercise.name} ${prescription.join("x")}`.trim();
+        const line = `${item.exercise.name} ${prescription.join("x")}`.trim();
+        return `- ${line} (${item.exercise.demoUrl})`;
       })
-      .join(", ");
+      .join("\n");
 
-    return `Coach: Good morning${displayName ? ` ${displayName}` : ""}. Today is ${workout.name}. Main work: ${mainWork}. Reply when done and I'll log it.`;
+    return [
+      `Coach: Good morning${displayName ? ` ${displayName}` : ""}. Today is ${workout.name}.`,
+      "Main work:",
+      mainWork,
+      "Reply \"starting now\" when you begin and I'll check in during the session."
+    ].join("\n");
   }
 
   async getWeeklyData(userId: string, weekStart: string, weekEnd: string) {
