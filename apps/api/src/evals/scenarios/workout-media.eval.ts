@@ -12,7 +12,7 @@ export const workoutMediaScenarios: EvalScenario[] = [
       actions: []
     }),
     expect: {
-      replyIncludes: ["🎞️", "GIFs for Push", "Bench Press", "GIF", "video"],
+      replyIncludes: ["🎞️", "Form guide for Push", "Bench Press", "_Setup:_", "_Cues:_", "GIF", "video"],
       replyExcludes: ["replace today's workout"]
     }
   }

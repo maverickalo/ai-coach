@@ -690,11 +690,22 @@ export class WorkoutEngine {
       .filter((item) => item.notes !== "Warm-up")
       .map((item) => {
         const prescription = formatPrescription(item);
+        const cues = (
+          item.exercise.cues?.length
+            ? item.exercise.cues
+            : ["Control the lowering phase", "Stop before form breaks"]
+        )
+          .slice(0, 2)
+          .join(" • ");
         return [
           `*${item.sortOrder}. ${item.exercise.name}* - ${prescription}`,
+          item.exercise.purpose ? `   _Why:_ ${item.exercise.purpose}` : null,
+          cues ? `   _Cues:_ ${cues}` : null,
           `   ${formatLastPerformance(item)}`,
-          `   Demo: <${item.exercise.demoUrl}|video> | <${item.exercise.gifUrl}|GIF>`
-        ].join("\n");
+          `   _Form:_ <${item.exercise.gifUrl}|GIF> | <${item.exercise.demoUrl}|video>`
+        ]
+          .filter(Boolean)
+          .join("\n");
       })
       .join("\n");
     const conditioning = workout.conditioning
@@ -807,16 +818,43 @@ export class WorkoutEngine {
 
   buildWorkoutMediaMessage(workout: CurrentWorkout): string {
     const mainExercises = workout.exercises.filter((item) => item.notes !== "Warm-up");
-    const lines = mainExercises.map(
-      (item) =>
-        `• *${item.exercise.name}*: <${item.exercise.gifUrl}|GIF> | <${item.exercise.demoUrl}|video>`
-    );
+    const lines = mainExercises.map((item) => {
+      const cues = (
+        item.exercise.cues?.length
+          ? item.exercise.cues
+          : ["Control the lowering phase", "Keep the target muscles doing the work", "Stop before form breaks"]
+      )
+        .map((cue) => `  • ${cue}`)
+        .join("\n");
+      const mistakes = item.exercise.commonMistakes
+        ?.slice(0, 2)
+        .map((mistake) => `  • ${mistake}`)
+        .join("\n");
+      const setup =
+        item.exercise.setup ??
+        item.exercise.instructions ??
+        "Set up with a stable base and controlled starting position before the first rep.";
+      const purpose =
+        item.exercise.purpose ??
+        "Use this movement to complete the planned strength work with clean, repeatable reps.";
+
+      return [
+        `*${item.sortOrder}. ${item.exercise.name}* - ${item.prescribedSets ?? "?"}x${item.prescribedReps ?? "?"}`,
+        `_Why:_ ${purpose}`,
+        `_Setup:_ ${setup}`,
+        cues ? `_Cues:_\n${cues}` : null,
+        mistakes ? `_Avoid:_\n${mistakes}` : null,
+        `_Form:_ <${item.exercise.gifUrl}|GIF> | <${item.exercise.demoUrl}|video>`
+      ]
+        .filter(Boolean)
+        .join("\n");
+    });
 
     return [
-      `🎞️ *GIFs for ${workout.name}*`,
-      "Use these as quick form references. Keep the written strength plan as the source of truth.",
+      `🎞️ *Form guide for ${workout.name}*`,
+      "Use this as a quick reference while lifting. Keep the written strength plan as the source of truth.",
       ...lines
-    ].join("\n");
+    ].join("\n\n");
   }
 
   async buildMissedDayAdjustmentMessage(userId: string): Promise<string> {

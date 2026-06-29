@@ -37,6 +37,10 @@ export interface Exercise {
   demoUrl: string;
   gifUrl: string;
   gifSearchUrl: string;
+  purpose?: string | undefined;
+  setup?: string | undefined;
+  cues?: string[] | undefined;
+  commonMistakes?: string[] | undefined;
 }
 
 export interface PrescribedExercise {

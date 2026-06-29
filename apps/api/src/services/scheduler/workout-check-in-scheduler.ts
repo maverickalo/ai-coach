@@ -152,14 +152,23 @@ export class WorkoutCheckInScheduler {
     const mention = this.slack.mentionUserId
       ? `<@${this.slack.mentionUserId}> `
       : "";
+    const cues = nextExercise?.exercise.cues?.slice(0, 2).join(" • ");
     const demo = nextExercise?.exercise.demoUrl
-      ? ` Demo: <${nextExercise.exercise.demoUrl}|video> | <${nextExercise.exercise.gifUrl}|GIF>`
+      ? `\n_Form:_ <${nextExercise.exercise.gifUrl}|GIF> | <${nextExercise.exercise.demoUrl}|video>`
       : "";
     const progress =
       state && (state.completedExercises.length > 0 || state.skippedExercises.length > 0)
         ? `\nProgress: ${state.completedExercises.length} completed, ${state.skippedExercises.length} skipped.`
         : "";
-    const text = `${mention}🏋️ *Check-in:* how did *${exerciseName}* go?\nSend weight, sets, reps, and RPE, or reply \`skip\`.${previous}${demo}${progress}`;
+    const text = [
+      `${mention}🏋️ *Check-in:* how did *${exerciseName}* go?`,
+      cues ? `_Cue:_ ${cues}` : null,
+      `Send weight, sets, reps, and RPE, or reply \`skip\`.${previous}`,
+      demo,
+      progress
+    ]
+      .filter(Boolean)
+      .join("\n");
 
     const sent = await this.slack.client.postMessage({
       channel: this.slack.channelId,

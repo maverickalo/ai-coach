@@ -490,7 +490,25 @@ export class ConversationEngine {
     return {
       intent: "answer_exercise_question",
       actions: [],
-      reply: `${exercise.exercise.name}\nVideo: ${exercise.exercise.demoUrl}\nGIF: ${exercise.exercise.gifUrl}`
+      reply: [
+        `🎞️ *${exercise.exercise.name}*`,
+        exercise.exercise.purpose ? `_Why:_ ${exercise.exercise.purpose}` : null,
+        exercise.exercise.setup ? `_Setup:_ ${exercise.exercise.setup}` : null,
+        exercise.exercise.cues?.length
+          ? ["_Cues:_", ...exercise.exercise.cues.map((cue) => `• ${cue}`)].join("\n")
+          : null,
+        exercise.exercise.commonMistakes?.length
+          ? [
+              "_Avoid:_",
+              ...exercise.exercise.commonMistakes
+                .slice(0, 2)
+                .map((mistake) => `• ${mistake}`)
+            ].join("\n")
+          : null,
+        `_Form:_ <${exercise.exercise.gifUrl}|GIF> | <${exercise.exercise.demoUrl}|video>`
+      ]
+        .filter(Boolean)
+        .join("\n")
     };
   }
 
