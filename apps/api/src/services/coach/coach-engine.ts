@@ -172,7 +172,16 @@ export class CoachEngine {
     const pain = input.parsedWorkout?.pain[0];
     if (pain || input.intent === "report_pain") {
       const bodyArea = pain?.bodyArea ?? "that area";
-      return `Don't push through ${bodyArea} pain. Stop or modify the painful movement. How bad is it from 1-10? If it is severe, sudden, or worsening, consult a medical professional.`;
+      const mentioned = input.context.currentWorkout?.exercises.find((item) =>
+        input.message
+          .toLowerCase()
+          .includes(item.exercise.name.toLowerCase().split(" ")[0] ?? "")
+      );
+      const substitute = mentioned?.exercise.commonSubstitutions[0];
+      const substitutionText = substitute
+        ? ` For now, swap ${mentioned.exercise.name} for ${substitute} if it is pain-free.`
+        : " For now, choose a pain-free substitution or skip the painful movement.";
+      return `Don't push through ${bodyArea} pain. How bad is it from 1-10?${substitutionText} Stop if pain is sharp, worsening, or changes your movement.`;
     }
 
     if (input.intent === "log_workout") {

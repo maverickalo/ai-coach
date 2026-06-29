@@ -135,9 +135,18 @@ export interface ParsedExerciseLog {
   reps: string | null;
   weight: number | null;
   rpe: number | null;
+  setDetails?: ParsedExerciseSetLog[] | undefined;
   difficulty: "easy" | "moderate" | "hard" | null;
   skippedReason: string | null;
   substituteExerciseName: string | null;
+  notes: string | null;
+}
+
+export interface ParsedExerciseSetLog {
+  setNumber: number;
+  reps: number | null;
+  weight: number | null;
+  rpe: number | null;
   notes: string | null;
 }
 
@@ -198,4 +207,15 @@ export interface CoachResult {
   reply: string;
   actions: CoachAction[];
   intent: CoachIntent;
+}
+
+export interface WorkoutState {
+  workoutId: string;
+  workoutName: string;
+  currentExercise: string | null;
+  currentSet: number | null;
+  completedExercises: string[];
+  skippedExercises: string[];
+  optionalWork: string[];
+  nextExercise: string | null;
 }

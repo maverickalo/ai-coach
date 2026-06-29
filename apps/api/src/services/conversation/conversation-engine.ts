@@ -204,6 +204,14 @@ export class ConversationEngine {
             context.currentWorkout.id,
             status
           );
+          if (status === "completed") {
+            result = {
+              ...result,
+              reply: await this.workoutEngine.buildWorkoutCompletionSummary(
+                context.currentWorkout.id
+              )
+            };
+          }
         }
       }
     }

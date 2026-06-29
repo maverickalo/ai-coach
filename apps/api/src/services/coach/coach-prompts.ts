@@ -33,6 +33,9 @@ Rules:
   intensity, and RPE when stated.
 - Capture pain separately with body area, description, and severity when stated.
 - Do not invent sets, reps, weight, RPE, pain severity, or skip reasons.
+- If the user gives individual set data, return setDetails with one entry per
+  set. If the user only gives aggregate data like 225 5x8, use aggregate sets,
+  reps, and weight.
 - "Done except X" means partial workout completion and X was skipped.
 `.trim();
 

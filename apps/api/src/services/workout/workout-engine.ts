@@ -15,7 +15,8 @@ import type {
   CurrentWorkout,
   ParsedConditioningLog,
   ParsedExerciseLog,
-  RecentWorkoutSummary
+  RecentWorkoutSummary,
+  WorkoutState
 } from "../../types/domain.js";
 import { dateInTimeZone, dayOfWeekInTimeZone } from "../../utils/dates.js";
 import { recommendConditioning } from "./conditioning-engine.js";
@@ -23,6 +24,56 @@ import { exerciseResource } from "./exercise-resources.js";
 
 export class WorkoutEngine {
   constructor(private readonly db: Database) {}
+
+  static formatWorkoutCompletionSummary(input: {
+    workoutName: string;
+    completed: Array<{
+      exerciseName: string;
+      sets: number | null;
+      reps: string | null;
+      weight: string | null;
+      rpe: string | null;
+    }>;
+    skipped: Array<{
+      exerciseName: string;
+      skippedReason: string | null;
+    }>;
+    painNotes: Array<{
+      exerciseName: string;
+      note: string;
+    }>;
+    nextTime: string[];
+  }): string {
+    const formatCompleted = (log: (typeof input.completed)[number]) => {
+      const volume = log.sets || log.reps ? `${log.sets ?? "?"}x${log.reps ?? "?"}` : "logged";
+      const load = log.weight ? ` @ ${log.weight} lb` : "";
+      const rpe = log.rpe ? `, RPE ${log.rpe}` : "";
+      return `• ${log.exerciseName}: ${volume}${load}${rpe}`;
+    };
+
+    return [
+      "✅ *Workout Complete*",
+      `*${input.workoutName}*`,
+      input.completed.length > 0
+        ? ["*Completed*", ...input.completed.map(formatCompleted)].join("\n")
+        : "*Completed*\n• Nothing logged yet",
+      input.skipped.length > 0
+        ? [
+            "*Skipped*",
+            ...input.skipped.map(
+              (log) =>
+                `• ${log.exerciseName}${log.skippedReason ? ` — ${log.skippedReason}` : " — reason not logged"}`
+            )
+          ].join("\n")
+        : null,
+      input.painNotes.length > 0
+        ? ["*Pain / notes*", ...input.painNotes.map((log) => `• ${log.exerciseName}: ${log.note}`)].join("\n")
+        : null,
+      input.nextTime.length > 0 ? ["*Next time*", ...input.nextTime].join("\n") : null
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+  }
 
   async getOrCreateWorkoutForDate(
     userId: string,
@@ -246,9 +297,32 @@ export class WorkoutEngine {
       throw new Error(`Failed to log ${input.exerciseName}`);
     }
 
-    const numericReps =
-      input.reps && /^\d+$/.test(input.reps) ? Number(input.reps) : null;
-    if (input.sets && numericReps !== null) {
+    if (input.setDetails && input.setDetails.length > 0) {
+      for (const set of input.setDetails) {
+        await this.db
+          .insert(exerciseSets)
+          .values({
+            exerciseLogId: log.id,
+            setNumber: set.setNumber,
+            reps: set.reps,
+            weight: set.weight?.toString() ?? null,
+            rpe: set.rpe?.toString() ?? input.rpe?.toString() ?? null,
+            notes: set.notes
+          })
+          .onConflictDoUpdate({
+            target: [exerciseSets.exerciseLogId, exerciseSets.setNumber],
+            set: {
+              reps: set.reps,
+              weight: set.weight?.toString() ?? null,
+              rpe: set.rpe?.toString() ?? input.rpe?.toString() ?? null,
+              notes: set.notes
+            }
+          });
+      }
+    } else {
+      const numericReps =
+        input.reps && /^\d+$/.test(input.reps) ? Number(input.reps) : null;
+      if (input.sets && numericReps !== null) {
       for (let setNumber = 1; setNumber <= input.sets; setNumber += 1) {
         await this.db
           .insert(exerciseSets)
@@ -267,6 +341,7 @@ export class WorkoutEngine {
               rpe: input.rpe?.toString() ?? null
             }
           });
+      }
       }
     }
 
@@ -361,6 +436,148 @@ export class WorkoutEngine {
 
     const exerciseName = event?.payload.exerciseName;
     return typeof exerciseName === "string" ? exerciseName : null;
+  }
+
+  async getWorkoutState(workoutId: string): Promise<WorkoutState | null> {
+    const workout = await this.getWorkoutById(workoutId);
+    if (!workout) {
+      return null;
+    }
+
+    const logRows = await this.db
+      .select({
+        exerciseName: exercises.name,
+        status: exerciseLogs.status,
+        setsCompleted: exerciseLogs.setsCompleted
+      })
+      .from(exerciseLogs)
+      .innerJoin(exercises, eq(exerciseLogs.exerciseId, exercises.id))
+      .where(eq(exerciseLogs.workoutId, workoutId));
+
+    const completedExercises = logRows
+      .filter((log) => log.status === "completed" || log.status === "partial")
+      .map((log) => log.exerciseName);
+    const skippedExercises = logRows
+      .filter((log) => log.status === "skipped")
+      .map((log) => log.exerciseName);
+    const loggedNames = new Set(logRows.map((log) => log.exerciseName.toLowerCase()));
+    const mainExercises = workout.exercises.filter((item) => item.notes !== "Warm-up");
+    const next = mainExercises.find(
+      (item) => !loggedNames.has(item.exercise.name.toLowerCase())
+    );
+    const lastCheckInExercise = await this.getLastCheckInExerciseName(workoutId);
+    const currentExercise =
+      lastCheckInExercise && !loggedNames.has(lastCheckInExercise.toLowerCase())
+        ? lastCheckInExercise
+        : next?.exercise.name ?? null;
+    const currentLog = logRows.find(
+      (log) => log.exerciseName.toLowerCase() === currentExercise?.toLowerCase()
+    );
+
+    const optionalWorkRows = await this.db
+      .select({
+        modality: conditioningLogs.modality,
+        distanceMeters: conditioningLogs.distanceMeters,
+        durationSeconds: conditioningLogs.durationSeconds,
+        calories: conditioningLogs.calories
+      })
+      .from(conditioningLogs)
+      .where(eq(conditioningLogs.workoutId, workoutId));
+
+    return {
+      workoutId,
+      workoutName: workout.name,
+      currentExercise,
+      currentSet: currentLog?.setsCompleted ? currentLog.setsCompleted + 1 : 1,
+      completedExercises,
+      skippedExercises,
+      optionalWork: optionalWorkRows.map((row) =>
+        [
+          row.modality.replaceAll("_", " "),
+          row.distanceMeters ? `${row.distanceMeters}m` : null,
+          row.durationSeconds ? `${Math.round(row.durationSeconds / 60)} min` : null,
+          row.calories ? `${row.calories} cal` : null
+        ]
+          .filter(Boolean)
+          .join(" ")
+      ),
+      nextExercise: next?.exercise.name ?? null
+    };
+  }
+
+  async buildWorkoutCompletionSummary(workoutId: string): Promise<string> {
+    const workout = await this.getWorkoutById(workoutId);
+    if (!workout) {
+      return "✅ *Workout Complete*\nI couldn't reload the workout details, but I marked the session complete.";
+    }
+
+    const logs = await this.db
+      .select({
+        exerciseLogId: exerciseLogs.id,
+        exerciseName: exercises.name,
+        status: exerciseLogs.status,
+        sets: exerciseLogs.setsCompleted,
+        reps: exerciseLogs.repsCompleted,
+        weight: exerciseLogs.weight,
+        rpe: exerciseLogs.rpe,
+        painScore: exerciseLogs.painScore,
+        skippedReason: exerciseLogs.skippedReason,
+        notes: exerciseLogs.notes
+      })
+      .from(exerciseLogs)
+      .innerJoin(exercises, eq(exerciseLogs.exerciseId, exercises.id))
+      .where(eq(exerciseLogs.workoutId, workoutId))
+      .orderBy(asc(exerciseLogs.createdAt));
+
+    const completed = logs.filter((log) => log.status !== "skipped");
+    const skipped = logs.filter((log) => log.status === "skipped");
+    const painNotes = logs.filter(
+      (log) =>
+        log.painScore !== null ||
+        /(hurt|pain|sore|ache|tweak|injur)/i.test(log.notes ?? "")
+    );
+    const nextTime = logs.map((log) => {
+      if (log.status === "skipped") {
+        return `• ${log.exerciseName}: no progression. ${log.skippedReason ? `Skipped because ${log.skippedReason}.` : "Ask why it was skipped."}`;
+      }
+      if (log.painScore !== null || /(hurt|pain|sore|ache|tweak|injur)/i.test(log.notes ?? "")) {
+        return `• ${log.exerciseName}: hold or reduce until pain-free.`;
+      }
+      if (log.status === "partial") {
+        return `• ${log.exerciseName}: hold the same weight next time.`;
+      }
+      return `• ${log.exerciseName}: progress only if all sets were solid at RPE 7-8.`;
+    });
+
+    const body = WorkoutEngine.formatWorkoutCompletionSummary({
+      workoutName: workout.name,
+      completed: completed.map((log) => ({
+        exerciseName: log.exerciseName,
+        sets: log.sets,
+        reps: log.reps,
+        weight: log.weight,
+        rpe: log.rpe
+      })),
+      skipped: skipped.map((log) => ({
+        exerciseName: log.exerciseName,
+        skippedReason: log.skippedReason
+      })),
+      painNotes: painNotes.map((log) => ({
+        exerciseName: log.exerciseName,
+        note: log.notes ?? `pain score ${log.painScore}`
+      })),
+      nextTime
+    });
+
+    await this.db
+      .update(workouts)
+      .set({
+        coachSummary: body,
+        updatedAt: new Date()
+      })
+      .where(eq(workouts.id, workoutId));
+
+    return body;
   }
 
   async getLastExercisePerformance(
@@ -482,7 +699,7 @@ export class WorkoutEngine {
       .join("\n");
     const conditioning = workout.conditioning
       ? [
-          "*Conditioning direction*",
+          "➕ *Optional add-on*",
           workout.conditioning.prescription,
           `_Why:_ ${workout.conditioning.reason}`,
           workout.conditioning.caution
@@ -494,18 +711,18 @@ export class WorkoutEngine {
       : null;
 
     return [
-      `*Coach AI - ${workout.name}*`,
+      `🏋️ *Coach AI — ${workout.name}*`,
       displayName ? `Good morning, ${displayName}.` : "Good morning.",
-      workout.focus ? `*Focus:* ${workout.focus}` : null,
+      workout.focus ? `🎯 *Focus:* ${workout.focus}` : null,
       workout.estimatedMinutes
-        ? `*Estimated:* ${workout.estimatedMinutes} minutes`
+        ? `⏱️ *Target:* ${workout.estimatedMinutes} minutes`
         : null,
-      "*Strength is the source of truth.* Reply `short`, `standard`, or `long` to scale the lifting plan. Reply `cardio` or `HYROX` and I'll add an optional conditioning block without replacing the strength work.",
-      "*Main work*",
+      "📌 *Strength is the source of truth.* Cardio/HYROX stays optional unless you ask to change the lift.",
+      "💪 *Main work*",
       mainWork,
       conditioning,
-      "*Log format:* `Back Squat 225 5x8 RPE 7, RDL 185 4x10 hard, skipped step-ups`",
-      "Reply `starting now` when you begin and I'll check in during the session."
+      "📝 *Log format:* `Back Squat 225 5x8 RPE 7, RDL 185 4x10 hard, skipped step-ups`",
+      "▶️ Reply `starting now` when you begin. I’ll track where you are and check in during the session."
     ]
       .filter(Boolean)
       .join("\n\n");

@@ -116,7 +116,22 @@ export class WeeklyReviewJob {
       }
     });
 
-    const body = `${generated.summary} Next week: ${generated.recommendations.join(" ")}`;
+    const skippedCount = data.exerciseLogs.filter(
+      (log) => log.status === "skipped"
+    ).length;
+    const painCount = data.exerciseLogs.filter(
+      (log) => log.painScore !== null
+    ).length;
+    const body = [
+      "📊 *Weekly Recap*",
+      `*${weekStart} → ${weekEnd}*`,
+      `✅ Workouts completed: ${completed}/${data.workouts.length}`,
+      `⏭️ Exercises skipped: ${skippedCount}`,
+      painCount > 0 ? `⚠️ Pain notes: ${painCount}` : "⚠️ Pain notes: none logged",
+      "",
+      `*Summary*\n${generated.summary}`,
+      `*Next week*\n${generated.recommendations.map((item) => `• ${item}`).join("\n")}`
+    ].join("\n");
 
     if (!this.delivery.slack && !this.delivery.email) {
       return {

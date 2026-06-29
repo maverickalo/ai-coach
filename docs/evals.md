@@ -58,6 +58,10 @@ apps/api/src/evals/
 - Progression: RPE 7 completion gets a small increase; pain blocks increases.
 - Check-in flow: daily posts tell the user to reply `starting now`, and skip
   during a check-in is not treated as completed work.
+- Workout state: current exercise, current set, completed exercises, skipped
+  exercises, optional work, and next exercise are represented explicitly.
+- End-of-workout reporting: Slack summaries include completed work, skipped
+  exercises, pain/notes, and next-time guidance in a clean format.
 
 These evals are deterministic and do not call OpenAI. Model-backed evals can be
 added later once there is a stable recorded dataset of real Slack conversations.

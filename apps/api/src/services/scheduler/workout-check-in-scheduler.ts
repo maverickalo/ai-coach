@@ -112,16 +112,10 @@ export class WorkoutCheckInScheduler {
       return;
     }
 
-    const loggedNames = new Set(
-      (await this.workoutEngine.getLoggedExerciseNames(workoutId)).map((name) =>
-        name.toLowerCase()
-      )
-    );
+    const state = await this.workoutEngine.getWorkoutState(workoutId);
     const nextExercise =
       workout.exercises.find(
-        (item) =>
-          item.notes !== "Warm-up" &&
-          !loggedNames.has(item.exercise.name.toLowerCase())
+        (item) => item.exercise.name === state?.nextExercise
       ) ?? workout.exercises.find((item) => item.notes !== "Warm-up");
 
     const exerciseName = nextExercise?.exercise.name ?? "the next exercise";
@@ -146,7 +140,11 @@ export class WorkoutCheckInScheduler {
     const demo = nextExercise?.exercise.demoUrl
       ? ` Demo: <${nextExercise.exercise.demoUrl}|video> | <${nextExercise.exercise.gifSearchUrl}|GIF search>`
       : "";
-    const text = `${mention}Quick check-in: how did ${exerciseName} go? Send weight, sets, reps, and RPE when you have it.${previous}${demo}`;
+    const progress =
+      state && (state.completedExercises.length > 0 || state.skippedExercises.length > 0)
+        ? `\nProgress: ${state.completedExercises.length} completed, ${state.skippedExercises.length} skipped.`
+        : "";
+    const text = `${mention}🏋️ *Check-in:* how did *${exerciseName}* go?\nSend weight, sets, reps, and RPE, or reply \`skip\`.${previous}${demo}${progress}`;
 
     const sent = await this.slack.client.postMessage({
       channel: this.slack.channelId,

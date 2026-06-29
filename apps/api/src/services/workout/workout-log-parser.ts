@@ -2,6 +2,7 @@ import type {
   CurrentWorkout,
   ParsedConditioningLog,
   ParsedExerciseLog,
+  ParsedExerciseSetLog,
   ParsedPain,
   ParsedWorkoutLog
 } from "../../types/domain.js";
@@ -169,6 +170,31 @@ function detectConditioning(message: string): ParsedConditioningLog[] {
   return conditioning;
 }
 
+function detectSetDetails(segment: string): ParsedExerciseSetLog[] {
+  const setDetails: ParsedExerciseSetLog[] = [];
+  const matches = segment.matchAll(/(\d+(?:\.\d+)?)\s*(?:lb|lbs)?\s*[xX]\s*(\d+)/g);
+  let setNumber = 1;
+
+  for (const match of matches) {
+    const weight = match[1] ? Number(match[1]) : null;
+    const reps = match[2] ? Number(match[2]) : null;
+    if (weight === null && reps === null) {
+      continue;
+    }
+
+    setDetails.push({
+      setNumber,
+      weight,
+      reps,
+      rpe: null,
+      notes: null
+    });
+    setNumber += 1;
+  }
+
+  return setDetails.length > 1 ? setDetails : [];
+}
+
 export function parseWorkoutLogFallback(
   message: string,
   currentWorkout: CurrentWorkout | null
@@ -222,14 +248,16 @@ export function parseWorkoutLogFallback(
         : null;
     const rpeMatch = segment.match(/rpe\s*(10|[1-9](?:\.\d)?)/i);
     const partial = /missed|failed|partial/i.test(segment);
+    const setDetails = detectSetDetails(segment);
 
     exercises.push({
       exerciseName: canonicalExerciseName(performanceMatch[1], currentWorkout),
       status: partial ? "partial" : "completed",
-      weight: Number(performanceMatch[2]),
-      sets: setsRepsMatch?.[1] ? Number(setsRepsMatch[1]) : null,
-      reps: setsRepsMatch?.[2] ?? null,
+      weight: setDetails[0]?.weight ?? Number(performanceMatch[2]),
+      sets: setDetails.length > 0 ? setDetails.length : setsRepsMatch?.[1] ? Number(setsRepsMatch[1]) : null,
+      reps: setDetails.length > 0 ? setDetails.map((set) => set.reps ?? "?").join(",") : setsRepsMatch?.[2] ?? null,
       rpe: rpeMatch?.[1] ? Number(rpeMatch[1]) : null,
+      setDetails: setDetails.length > 0 ? setDetails : undefined,
       difficulty,
       skippedReason: null,
       substituteExerciseName: null,

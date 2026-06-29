@@ -2,11 +2,13 @@ import { assertActionsExclude, assertActionsInclude } from "./assertions/action-
 import { assertTextExcludes, assertTextIncludes } from "./assertions/text-assertions.js";
 import { cardioAddonScenarios } from "./scenarios/cardio-addon.eval.js";
 import { checkInFlowScenarios } from "./scenarios/check-in-flow.eval.js";
+import { endWorkoutSummaryScenarios } from "./scenarios/end-workout-summary.eval.js";
 import { painSafetyScenarios } from "./scenarios/pain-safety.eval.js";
 import { progressionScenarios } from "./scenarios/progression.eval.js";
 import { skipExerciseScenarios } from "./scenarios/skip-exercise.eval.js";
 import { strengthSourceOfTruthScenarios } from "./scenarios/strength-source-of-truth.eval.js";
 import { workoutLoggingScenarios } from "./scenarios/workout-logging.eval.js";
+import { workoutStateScenarios } from "./scenarios/workout-state.eval.js";
 import type { EvalScenario } from "./types.js";
 
 const scenarios: EvalScenario[] = [
@@ -16,7 +18,9 @@ const scenarios: EvalScenario[] = [
   ...workoutLoggingScenarios,
   ...painSafetyScenarios,
   ...progressionScenarios,
-  ...checkInFlowScenarios
+  ...checkInFlowScenarios,
+  ...workoutStateScenarios,
+  ...endWorkoutSummaryScenarios
 ];
 
 async function runScenario(scenario: EvalScenario): Promise<string[]> {

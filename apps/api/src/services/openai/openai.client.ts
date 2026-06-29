@@ -35,6 +35,17 @@ const parsedExerciseSchema = z.object({
   reps: z.string().nullable(),
   weight: z.number().nonnegative().nullable(),
   rpe: z.number().min(1).max(10).nullable(),
+  setDetails: z
+    .array(
+      z.object({
+        setNumber: z.number().int().positive(),
+        reps: z.number().int().positive().nullable(),
+        weight: z.number().nonnegative().nullable(),
+        rpe: z.number().min(1).max(10).nullable(),
+        notes: z.string().nullable()
+      })
+    )
+    .optional(),
   difficulty: z.enum(["easy", "moderate", "hard"]).nullable(),
   skippedReason: z.string().nullable(),
   substituteExerciseName: z.string().nullable(),
