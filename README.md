@@ -33,6 +33,7 @@ apps/
   site/                 Canonical static Privacy and Terms site
 docs/
   architecture.md       Service boundaries, schema, routes, and design decisions
+  training-principles.md HYROX, fatigue, and progression guidance
   twilio-a2p.md         A2P registration and messaging compliance checklist
   roadmap.md            Delivery milestones and production hardening
 index.html              Compatibility mirror for the existing GitHub Pages route

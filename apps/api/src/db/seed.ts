@@ -37,6 +37,10 @@ const equipmentSeed = [
   ["Jump rope", "cardio", null],
   ["Cable system", "machine", "Integrated with Rep Aries rack"],
   ["Pull-up bar", "bodyweight", null],
+  ["TRX", "bodyweight", "Suspension trainer"],
+  ["Sled", "conditioning", "Sled push and pull work"],
+  ["Battle ropes", "conditioning", "Battle rope intervals"],
+  ["Outdoor running routes", "cardio", "Local outdoor running access"],
   ["Foam roller", "recovery", null],
   ["Ab mat", "core", null],
   ["Bench", "free weights", null]
@@ -552,7 +556,24 @@ async function seed() {
       ["running_plan", "Running plan is managed separately", "training"],
       ["diet", "Vegetarian", "nutrition"],
       ["disliked_exercise", "Dislikes Bulgarian split squats", "preference"],
-      ["preferred_lunge", "Prefers reverse lunges", "preference"]
+      ["preferred_lunge", "Prefers reverse lunges", "preference"],
+      ["body_weight", "Body weight is 285 lb", "training"],
+      ["height", "Height is 6 feet", "training"],
+      [
+        "hyrox_conditioning_style",
+        "HYROX-biased workouts can use treadmill or outdoor runs, rower, Assault Bike, sled push, wall balls, slam balls, TRX rows, battle ropes, burpees, box jumps, mountain climbers, and carries, but the default plan should remain more strength-based.",
+        "coaching_style"
+      ],
+      [
+        "outdoor_running_access",
+        "Has plenty of outdoor places to run around town",
+        "equipment"
+      ],
+      [
+        "hyrox_running_priority",
+        "HYROX requires frequent running exposure, so Coach AI should include controlled run segments in HYROX-biased sessions while managing lower-body fatigue and pain risk.",
+        "training"
+      ]
     ] as const;
 
     for (const [key, value, category] of explicitMemories) {

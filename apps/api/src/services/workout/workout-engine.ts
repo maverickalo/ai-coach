@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, ilike, lte } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, lte, sql } from "drizzle-orm";
 import type { Database } from "../../db/index.js";
 import {
   coachEvents,
@@ -16,6 +16,7 @@ import type {
   RecentWorkoutSummary
 } from "../../types/domain.js";
 import { dateInTimeZone, dayOfWeekInTimeZone } from "../../utils/dates.js";
+import { recommendConditioning } from "./conditioning-engine.js";
 import { exerciseDemoUrl } from "./exercise-resources.js";
 
 export class WorkoutEngine {
@@ -132,20 +133,19 @@ export class WorkoutEngine {
       .where(eq(workoutTemplateExercises.templateId, row.templateId))
       .orderBy(asc(workoutTemplateExercises.sortOrder));
 
-    return {
-      id: row.id,
-      name: row.name ?? "Workout",
-      focus: row.focus,
-      estimatedMinutes: row.estimatedMinutes,
-      scheduledDate: row.scheduledDate,
-      status: row.status,
-      exercises: prescribed.map((item) => ({
+    const items = await Promise.all(
+      prescribed.map(async (item) => ({
         templateExerciseId: item.templateExerciseId,
         sortOrder: item.sortOrder,
         prescribedSets: item.prescribedSets,
         prescribedReps: item.prescribedReps,
         prescribedWeight: item.prescribedWeight,
         notes: item.notes,
+        lastPerformance: await this.getLastExercisePerformance(
+          userId,
+          item.exerciseName,
+          row.id
+        ),
         exercise: {
           id: item.exerciseId,
           name: item.exerciseName,
@@ -157,6 +157,18 @@ export class WorkoutEngine {
           demoUrl: exerciseDemoUrl(item.exerciseName)
         }
       }))
+    );
+    const recentTraining = await this.getRecentTrainingSignals(userId, 7);
+
+    return {
+      id: row.id,
+      name: row.name ?? "Workout",
+      focus: row.focus,
+      estimatedMinutes: row.estimatedMinutes,
+      scheduledDate: row.scheduledDate,
+      status: row.status,
+      exercises: items,
+      conditioning: recommendConditioning(recentTraining)
     };
   }
 
@@ -307,7 +319,11 @@ export class WorkoutEngine {
     return rows.map((row) => row.name);
   }
 
-  async getLastExercisePerformance(userId: string, exerciseName: string) {
+  async getLastExercisePerformance(
+    userId: string,
+    exerciseName: string,
+    excludeWorkoutId?: string
+  ) {
     const [last] = await this.db
       .select({
         scheduledDate: workouts.scheduledDate,
@@ -324,7 +340,10 @@ export class WorkoutEngine {
       .where(
         and(
           eq(workouts.userId, userId),
-          ilike(exercises.name, exerciseName)
+          ilike(exercises.name, exerciseName),
+          excludeWorkoutId
+            ? sql`${workouts.id} <> ${excludeWorkoutId}`
+            : undefined
         )
       )
       .orderBy(desc(workouts.scheduledDate), desc(exerciseLogs.updatedAt))
@@ -333,29 +352,111 @@ export class WorkoutEngine {
     return last ?? null;
   }
 
+  async getRecentTrainingSignals(userId: string, limit = 7) {
+    const recentWorkouts = await this.db
+      .select({
+        id: workouts.id,
+        date: workouts.scheduledDate,
+        workoutName: workoutTemplates.name,
+        focus: workoutTemplates.focus,
+        status: workouts.status
+      })
+      .from(workouts)
+      .leftJoin(workoutTemplates, eq(workouts.templateId, workoutTemplates.id))
+      .where(eq(workouts.userId, userId))
+      .orderBy(desc(workouts.scheduledDate))
+      .limit(limit);
+
+    return Promise.all(
+      recentWorkouts.map(async (workout) => {
+        const exerciseRows = await this.db
+          .select({
+            exerciseName: exercises.name,
+            painScore: exerciseLogs.painScore
+          })
+          .from(exerciseLogs)
+          .innerJoin(exercises, eq(exerciseLogs.exerciseId, exercises.id))
+          .where(eq(exerciseLogs.workoutId, workout.id));
+
+        return {
+          date: workout.date,
+          workoutName: workout.workoutName ?? "Workout",
+          focus: workout.focus,
+          status: workout.status,
+          exerciseNames: exerciseRows.map((row) => row.exerciseName),
+          painReported: exerciseRows.some((row) => row.painScore !== null)
+        };
+      })
+    );
+  }
+
   buildDailyWorkoutMessage(
     displayName: string | null,
     workout: CurrentWorkout
   ): string {
+    const formatPrescription = (item: CurrentWorkout["exercises"][number]) => {
+      const prescription = [
+        item.prescribedSets,
+        item.prescribedReps
+      ].filter(Boolean);
+      return prescription.length > 0 ? prescription.join("x") : "as prescribed";
+    };
+    const formatLastPerformance = (
+      item: CurrentWorkout["exercises"][number]
+    ) => {
+      const last = item.lastPerformance;
+      if (!last) {
+        return "Last: no logged history yet";
+      }
+
+      const load = last.weight ? `${last.weight} lb` : "load not logged";
+      const volume =
+        last.sets || last.reps
+          ? `${last.sets ?? "?"}x${last.reps ?? "?"}`
+          : "sets/reps not logged";
+      const rpe = last.rpe ? `, RPE ${last.rpe}` : "";
+      return `Last ${last.scheduledDate}: ${load} ${volume}${rpe}`;
+    };
     const mainWork = workout.exercises
       .filter((item) => item.notes !== "Warm-up")
-      .slice(0, 4)
       .map((item) => {
-        const prescription = [
-          item.prescribedSets,
-          item.prescribedReps
-        ].filter(Boolean);
-        const line = `${item.exercise.name} ${prescription.join("x")}`.trim();
-        return `- ${line} (${item.exercise.demoUrl})`;
+        const prescription = formatPrescription(item);
+        return [
+          `*${item.sortOrder}. ${item.exercise.name}* - ${prescription}`,
+          `   ${formatLastPerformance(item)}`,
+          `   Demo: ${item.exercise.demoUrl}`
+        ].join("\n");
       })
       .join("\n");
+    const conditioning = workout.conditioning
+      ? [
+          "*Conditioning direction*",
+          workout.conditioning.prescription,
+          `_Why:_ ${workout.conditioning.reason}`,
+          workout.conditioning.caution
+            ? `_Watch-out:_ ${workout.conditioning.caution}`
+            : null
+        ]
+          .filter(Boolean)
+          .join("\n")
+      : null;
 
     return [
-      `Coach: Good morning${displayName ? ` ${displayName}` : ""}. Today is ${workout.name}.`,
-      "Main work:",
+      `*Coach AI - ${workout.name}*`,
+      displayName ? `Good morning, ${displayName}.` : "Good morning.",
+      workout.focus ? `*Focus:* ${workout.focus}` : null,
+      workout.estimatedMinutes
+        ? `*Estimated:* ${workout.estimatedMinutes} minutes`
+        : null,
+      "*Before we lock it in:* reply `short`, `standard`, `long`, `strength`, or `HYROX` and I'll adjust today's layout.",
+      "*Main work*",
       mainWork,
-      "Reply \"starting now\" when you begin and I'll check in during the session."
-    ].join("\n");
+      conditioning,
+      "*Log format:* `Back Squat 225 5x8 RPE 7, RDL 185 4x10 hard, skipped step-ups`",
+      "Reply `starting now` when you begin and I'll check in during the session."
+    ]
+      .filter(Boolean)
+      .join("\n\n");
   }
 
   async getWeeklyData(userId: string, weekStart: string, weekEnd: string) {

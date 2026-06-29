@@ -45,6 +45,15 @@ export interface PrescribedExercise {
   prescribedReps: string | null;
   prescribedWeight: string | null;
   notes: string | null;
+  lastPerformance?: {
+    scheduledDate: string;
+    status: string;
+    sets: number | null;
+    reps: string | null;
+    weight: string | null;
+    rpe: string | null;
+    notes: string | null;
+  } | null;
 }
 
 export interface CurrentWorkout {
@@ -55,6 +64,15 @@ export interface CurrentWorkout {
   scheduledDate: string;
   status: string;
   exercises: PrescribedExercise[];
+  conditioning?: ConditioningRecommendation | null;
+}
+
+export interface ConditioningRecommendation {
+  mode: "run" | "row" | "bike" | "hyrox_circuit" | "mobility";
+  sessionShape: "short" | "standard" | "long" | "strength_bias" | "hyrox_bias";
+  prescription: string;
+  reason: string;
+  caution: string | null;
 }
 
 export interface RecentWorkoutSummary {
