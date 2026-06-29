@@ -7,8 +7,8 @@ tracks preferences and pain reports, recommends progression, and produces a
 weekly review.
 
 The interaction is designed to feel like texting a coach rather than filling
-out a workout tracker. Twilio SMS remains an optional transport that can be
-enabled after A2P approval.
+out a workout tracker. Slack and the mobile web app are the active MVP
+interfaces; email can be used as an optional reminder fallback.
 
 ## Tech stack
 
@@ -17,7 +17,8 @@ enabled after A2P approval.
 - Fastify
 - Drizzle ORM
 - Supabase Postgres and Auth
-- Twilio SMS as an optional channel
+- Slack Events API for chat and reminders
+- Optional Resend email reminders
 - OpenAI Responses API with structured outputs
 - Railway
 - pnpm workspaces
@@ -46,17 +47,17 @@ for Twilio A2P remain stable.
 ## Architecture
 
 ```text
-Next.js web app or Twilio SMS
-  -> authenticated web route or Twilio adapter
+Next.js web app or Slack
+  -> authenticated web route or Slack adapter
   -> Conversation Engine
   -> Coach Engine
   -> Workout / Memory / Progression Engines
   -> Drizzle / Supabase
   -> OpenAI Responses API
-  -> web response or Twilio adapter
+  -> web response or Slack adapter
 ```
 
-The web and Twilio layers are transports only. They authenticate or validate
+The web and Slack layers are transports only. They authenticate or validate
 requests and delegate to the same Conversation Engine. The Coach Engine returns
 a reply and structured actions; it never writes to the database directly.
 
@@ -70,7 +71,8 @@ Prerequisites:
 - pnpm through Corepack
 - Supabase project with Postgres and Auth
 - OpenAI API key
-- Twilio account and Messaging Service or phone number when enabling SMS
+- Slack app when using the Slack coach channel
+- Resend account when enabling email reminders
 
 Install dependencies:
 
@@ -95,13 +97,13 @@ SUPABASE_URL=
 SUPABASE_PUBLISHABLE_KEY=
 OPENAI_API_KEY=
 OPENAI_MODEL=gpt-5.4-mini
-TWILIO_ACCOUNT_SID=
-TWILIO_AUTH_TOKEN=
-TWILIO_MESSAGING_SERVICE_SID=
-TWILIO_FROM_NUMBER=
 SLACK_SIGNING_SECRET=
 SLACK_BOT_TOKEN=
 SLACK_ALLOWED_USER_ID=
+SLACK_CHANNEL_ID=
+RESEND_API_KEY=
+REMINDER_EMAIL_FROM=
+REMINDER_EMAIL_TO=
 COACH_OWNER_PHONE_NUMBER=
 COACH_OWNER_EMAIL=
 APP_BASE_URL=http://localhost:3001
@@ -120,9 +122,9 @@ NEXT_PUBLIC_API_URL=http://localhost:3001
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
 ```
 
-Use either `TWILIO_MESSAGING_SERVICE_SID` or `TWILIO_FROM_NUMBER`. A Messaging
-Service is preferred for production. Twilio variables can be left blank when
-using only the web MVP.
+Set `SLACK_CHANNEL_ID` to post scheduled reminders into a dedicated Slack
+channel. Email reminders are optional and require `RESEND_API_KEY`,
+`REMINDER_EMAIL_FROM`, and `REMINDER_EMAIL_TO`.
 
 In Supabase Auth, enable email magic links and add these redirect URLs:
 
@@ -178,21 +180,21 @@ Expected response:
 
 Without `DATABASE_URL`, the server intentionally exposes only `/health`.
 
-## Simulate inbound SMS
+## Simulate a message
 
-The development route does not call Twilio:
+The development route uses the normal Conversation Engine without Slack:
 
 ```bash
 curl -X POST http://localhost:3001/dev/simulate-message \
   -H 'content-type: application/json' \
   -d '{
-    "phoneNumber": "+12065551234",
+    "email": "sean@example.com",
     "message": "Squat 225 5x8 felt easy, RDL 185 hard, skipped step ups"
   }'
 ```
 
 The route stores the conversation and applies the same Coach Engine actions as
-the Twilio webhook. It is disabled when `NODE_ENV=production`.
+the web and Slack paths. It is disabled when `NODE_ENV=production`.
 
 ## API routes
 
@@ -205,7 +207,6 @@ the Twilio webhook. It is disabled when `NODE_ENV=production`.
 | `GET` | `/workouts` | Authenticated workout history |
 | `GET` | `/profile` | Authenticated profile |
 | `PUT` | `/profile` | Authenticated profile update |
-| `POST` | `/twilio/inbound` | Validated Twilio SMS webhook |
 | `POST` | `/slack/events` | Validated Slack Events API endpoint |
 | `POST` | `/dev/simulate-message` | Local message simulation |
 | `POST` | `/jobs/send-daily-workout` | Create and send today's workout |
@@ -235,10 +236,11 @@ Subscribe the bot to:
 - `message.im` for direct messages
 - `app_mention` for channel conversations
 
-For a dedicated channel, create the channel, invite the app, and mention it with
-`@Coach AI`. Set `SLACK_SIGNING_SECRET` and `SLACK_BOT_TOKEN` on Railway. Set
+For a dedicated private channel with no tagging, subscribe to `message.groups`,
+invite the app to the channel, and set `SLACK_CHANNEL_ID` on Railway. Set
+`SLACK_SIGNING_SECRET` and `SLACK_BOT_TOKEN` on Railway. Set
 `SLACK_ALLOWED_USER_ID` to your Slack user ID to keep the personal bot locked to
-you.
+you and to mention you in scheduled reminders.
 
 ## Quality commands
 
@@ -249,7 +251,7 @@ pnpm test
 pnpm build
 ```
 
-Tests cover deterministic SMS commands, progression rules, timezone workout
+Tests cover deterministic commands, progression rules, timezone workout
 selection, fallback workout parsing, pain detection, and missing exercises.
 
 ## Railway deployment
@@ -265,9 +267,11 @@ API service:
 4. Run `pnpm db:migrate` and `pnpm db:seed` against production.
 5. Set `APP_BASE_URL` to the public API HTTPS URL.
 6. Set `WEB_APP_URL` to the public web HTTPS URL.
-7. Configure the optional Twilio inbound webhook as:
-   `https://YOUR-RAILWAY-DOMAIN/twilio/inbound`
-8. Invoke job routes from a scheduler with `x-job-secret`, or create
+7. Configure Slack Events API as:
+   `https://YOUR-RAILWAY-DOMAIN/slack/events`
+8. Set `SLACK_CHANNEL_ID` for scheduled Slack reminders.
+9. Optionally set Resend variables for email reminders.
+10. Invoke job routes from a scheduler with `x-job-secret`, or create
    dedicated Railway cron services that call the same job classes.
 
 Web service:
@@ -291,11 +295,11 @@ GitHub configuration:
 When editing legal content, update `apps/site` and its matching root file in the
 same commit so the existing public route does not change.
 
-## Twilio A2P
+## Twilio A2P Legal Pages
 
-Use [docs/twilio-a2p.md](docs/twilio-a2p.md) to complete registration. It
-contains the opt-in description, sample messages, keyword responses, public
-legal URLs, and production checklist.
+The public Privacy and Terms URLs remain hosted because they were already
+submitted for Twilio A2P review. Twilio SMS is no longer an active app
+transport in this codebase.
 
 ## Current limitations
 
@@ -305,4 +309,4 @@ legal URLs, and production checklist.
 - Natural-language parsing falls back to regex during OpenAI outages.
 - Railway job triggering still needs to be configured in the Railway project.
 - A real Supabase project is required for the authenticated web acceptance
-  test. Live Twilio credentials are only required for the optional SMS path.
+  test.

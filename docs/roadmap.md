@@ -22,7 +22,7 @@ Status: implemented; requires Supabase environment configuration
 - today's workout card and natural-language chat
 - optimistic messages, loading state, and quick actions
 - authenticated API routes that reuse the Conversation Engine
-- Twilio remains available as an optional later channel
+- Slack is available as the primary conversational channel outside the web app
 
 Exit test:
 
@@ -57,15 +57,15 @@ Status: implemented
 
 - local-timezone workout selection
 - idempotent workout creation by user/date
-- concise daily workout SMS
-- opted-in user enforcement
+- concise daily workout reminder
+- Slack and optional email delivery
 - outbound message storage
 - `/jobs/send-daily-workout`
 
 Remaining:
 
 - configure the actual Railway schedule
-- add Twilio delivery-status callbacks and retries
+- add delivery retries and alerting
 
 ## Milestone 4: Conversation and OpenAI
 
@@ -120,20 +120,20 @@ Remaining:
 - periodization and deload rules
 - human escalation policy
 
-## Milestone 7: Twilio production path
+## Milestone 7: Slack production path
 
-Status: implemented; requires credentials and live verification
+Status: implemented; requires production channel configuration
 
-- Twilio form webhook
+- Slack Events API webhook
 - production signature validation
-- TwiML replies
-- outbound Messaging Service support
+- app DM and private-channel replies
+- scheduled channel reminders
 - webhook idempotency
 
 Remaining:
 
-- end-to-end test with a Twilio number
-- status callbacks
+- configure `SLACK_CHANNEL_ID`
+- configure Railway schedule
 - error queue and alerting
 
 ## Milestone 8: Weekly review and operations
@@ -144,7 +144,7 @@ Status: implemented; requires schedule configuration
 - workout and exercise-log aggregation
 - structured AI weekly review
 - deterministic fallback review
-- stored review and outbound SMS
+- stored review and outbound Slack/email delivery
 - protected job route
 
 Remaining:
@@ -164,9 +164,9 @@ Before onboarding additional users:
 4. Add encrypted secret management and log redaction.
 5. Add backups, retention policy, and user deletion/export workflows.
 6. Add per-user scheduling and quiet hours.
-7. Add consent evidence reporting for A2P audits.
+7. Keep A2P legal pages stable while SMS remains inactive.
 8. Add model evaluations for parsing accuracy, missing-exercise behavior, and
    pain safety.
-9. Add monitoring for Twilio delivery failures and OpenAI errors.
+9. Add monitoring for Slack/email delivery failures and OpenAI errors.
 10. Add browser-level authenticated tests against a dedicated Supabase test
     project.

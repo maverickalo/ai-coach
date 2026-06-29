@@ -1,7 +1,15 @@
+export interface SlackMessageResult {
+  externalId: string;
+  status: string;
+}
+
 export class SlackClient {
   constructor(private readonly botToken: string) {}
 
-  async postMessage(input: { channel: string; text: string }) {
+  async postMessage(input: {
+    channel: string;
+    text: string;
+  }): Promise<SlackMessageResult> {
     const response = await fetch("https://slack.com/api/chat.postMessage", {
       method: "POST",
       headers: {
@@ -14,9 +22,18 @@ export class SlackClient {
       })
     });
 
-    const result = (await response.json()) as { ok?: boolean; error?: string };
+    const result = (await response.json()) as {
+      ok?: boolean;
+      error?: string;
+      ts?: string;
+    };
     if (!response.ok || !result.ok) {
       throw new Error(result.error ?? "Failed to post Slack message");
     }
+
+    return {
+      externalId: result.ts ?? crypto.randomUUID(),
+      status: "sent"
+    };
   }
 }

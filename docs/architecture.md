@@ -3,8 +3,8 @@
 ## System flow
 
 ```text
-Web message or inbound SMS
-  -> Supabase bearer auth, Slack signature validation, or Twilio signature validation
+Web or Slack message
+  -> Supabase bearer auth or Slack signature validation
   -> Conversation Engine
   -> deterministic START / STOP / HELP handling
   -> user and conversation lookup
@@ -16,7 +16,7 @@ Web message or inbound SMS
   -> Workout / Memory / Progression services
   -> Drizzle / Supabase
   -> persisted outbound message
-  -> JSON response or TwiML response
+  -> JSON response or Slack reply
 ```
 
 Scheduled messages use the same domain services:
@@ -25,8 +25,7 @@ Scheduled messages use the same domain services:
 Railway scheduler
   -> Daily Workout or Weekly Review Job
   -> Workout Engine / OpenAI
-  -> Messaging Service
-  -> Twilio provider
+  -> Slack channel post and/or email reminder
 ```
 
 The Next.js web app is the primary MVP interface. It authenticates with
@@ -34,16 +33,6 @@ Supabase, displays API data, and submits messages. It contains no coaching,
 workout, memory, or progression decisions.
 
 ## Module responsibilities
-
-### Twilio adapter
-
-Files: `src/adapters/twilio`
-
-- Validates production webhook signatures.
-- Converts Twilio form fields into an internal message.
-- Creates TwiML responses.
-- Sends outbound SMS through a Messaging Service SID or phone number.
-- Contains no coaching, workout, progression, or memory decisions.
 
 ### Slack adapter
 
@@ -54,7 +43,15 @@ Files: `src/adapters/slack`, `src/routes/slack.routes.ts`
 - Routes personal Slack messages into the Conversation Engine.
 - Sends replies through Slack `chat.postMessage`.
 - Uses the same workout, memory, progression, and exercise demo context as the
-  web and SMS channels.
+  web channel.
+- Contains no coaching, workout, progression, or memory decisions.
+
+### Email adapter
+
+Files: `src/adapters/email`
+
+- Sends optional reminder email through Resend.
+- Used only by scheduled reminder jobs.
 - Contains no coaching, workout, progression, or memory decisions.
 
 ### Web portal
@@ -81,10 +78,9 @@ File: `src/services/auth/supabase-auth.ts`
 
 File: `src/services/conversation/conversation-engine.ts`
 
-- Owns the inbound web and SMS application workflow.
-- Finds or creates users and conversations.
+- Owns the inbound web and Slack application workflow.
+- Finds conversations for authenticated users.
 - Stores inbound and outbound messages.
-- Handles webhook idempotency.
 - Handles START, STOP, and HELP before any model call.
 - Builds context, classifies intent, invokes the Coach Engine, and applies
   returned actions.
@@ -109,7 +105,7 @@ File: `src/services/workout/workout-engine.ts`
 - Creates a scheduled workout exactly once per user/date.
 - Loads prescribed exercises in order.
 - Persists exercise summaries and set detail.
-- Builds concise daily workout SMS text.
+- Builds concise daily workout reminder text.
 - Loads weekly workout and exercise-log data.
 
 ### Workout Log Parser
@@ -165,13 +161,14 @@ Files: `src/services/scheduler`
   stores the outbound message.
 - Weekly job gathers the previous local week, generates a review, stores it,
   and sends it.
-- Neither job sends messages to an opted-out user.
+- Jobs deliver to Slack and/or email when those reminder channels are
+  configured.
 
 ## Database schema
 
 | Table | Responsibility |
 | --- | --- |
-| `users` | Supabase identity, optional phone identity, timezone, and SMS consent |
+| `users` | Supabase identity, optional phone identity, and timezone |
 | `user_profiles` | Goal, style, diet, equipment notes, and injury notes |
 | `equipment` | Per-user available equipment |
 | `exercises` | Exercise catalog, instructions, equipment, substitutions |
@@ -202,26 +199,20 @@ Returns:
 {"ok":true}
 ```
 
-### `POST /twilio/inbound`
-
-- Accepts Twilio form-encoded webhook fields.
-- Verifies `X-Twilio-Signature` in production.
-- Requires the exact public `APP_BASE_URL` for correct signature construction.
-- Returns a TwiML `<Message>` response.
-
 ### `POST /slack/events`
 
 - Accepts Slack Events API requests.
 - Verifies `X-Slack-Signature` and `X-Slack-Request-Timestamp`.
 - Returns URL verification challenges for Slack app setup.
-- Handles direct `message.im` events and channel `app_mention` events.
+- Handles direct `message.im`, private-channel `message.groups`, and channel
+  `app_mention` events.
 - Ignores bot/subtype message events to avoid reply loops.
 - Optionally restricts access to `SLACK_ALLOWED_USER_ID`.
 
 ### `POST /dev/simulate-message`
 
 - Development only.
-- Uses the complete conversation workflow without Twilio.
+- Uses the complete conversation workflow without Slack.
 - Persists messages and actions.
 
 ### Authenticated web routes
@@ -235,7 +226,7 @@ Returns:
 
 These routes require a Supabase access token in the `Authorization` header.
 `POST /chat` passes the message through the same Conversation Engine used by
-Twilio.
+Slack.
 
 ### Job routes
 
@@ -258,7 +249,6 @@ Use OpenAI for:
 Use deterministic code for:
 
 - START, STOP, and HELP
-- SMS consent enforcement
 - dates and workout selection
 - database queries and writes
 - schema validation
@@ -266,7 +256,6 @@ Use deterministic code for:
 - missing-exercise comparison
 - progression rules
 - job authorization
-- Twilio signature validation
 - maximum message length
 
 The model proposes or formats. Application services validate and persist.
@@ -276,8 +265,8 @@ The model proposes or formats. Application services validate and persist.
 1. Wrap inbound message storage, action application, outbound storage, and
    webhook completion in one database transaction.
 2. Move scheduled jobs to a durable queue before supporting many users.
-3. Add retries and delivery-status webhooks for outbound Twilio messages.
-4. Add prompt/model/evaluation telemetry and redact phone numbers from logs.
+3. Add retries and delivery-status tracking for Slack and email reminders.
+4. Add prompt/model/evaluation telemetry and redact personal identifiers from logs.
 5. Store unit preference explicitly; V1 preserves numeric weights without
    conversion.
 6. Add a conversation-state table for unresolved follow-up questions.

@@ -70,7 +70,7 @@ export class CoachEngine {
           intent: input.intent
         };
       } catch {
-        // The deterministic response keeps SMS handling available during AI outages.
+        // Keep a useful response available during AI outages.
       }
     }
 

@@ -5,15 +5,13 @@ import {
   conversations,
   exercises,
   messages,
-  processedWebhooks,
   substitutions,
   users
 } from "../../db/schema.js";
 import { env } from "../../env.js";
 import type {
   CoachAction,
-  CoachResult,
-  InboundMessage
+  CoachResult
 } from "../../types/domain.js";
 import { dateInTimeZone } from "../../utils/dates.js";
 import { COACH_PROMPT_VERSION } from "../coach/coach-prompts.js";
@@ -29,13 +27,13 @@ import {
 } from "./intent-classifier.js";
 
 const START_REPLY =
-  "Coach AI: You are now opted in to receive workout reminders, workout logging prompts, and coaching messages. Message frequency varies. Msg & data rates may apply. Reply HELP for help. Reply STOP to opt out.";
+  "Coach AI: Reminders are on. Send workout results, questions, pain updates, or schedule changes here. Reply HELP for examples or STOP to pause reminders.";
 
 const HELP_REPLY =
-  'Coach AI: Reply with your workout results, questions, or updates like "wrist hurts" or "I only have 30 minutes." Message frequency varies. Msg & data rates may apply. Reply STOP to opt out.';
+  'Coach AI: Send workout results, questions, or updates like "wrist hurts", "I only have 30 minutes", or "squat 225 5x8 felt good". Reply STOP to pause reminders.';
 
 const STOP_REPLY =
-  "Coach AI: You have been opted out and will no longer receive messages. Reply START to opt back in.";
+  "Coach AI: Reminders are paused. Reply START when you want them back on.";
 
 export class ConversationEngine {
   constructor(
@@ -46,46 +44,6 @@ export class ConversationEngine {
     private readonly memoryEngine: MemoryEngine,
     private readonly openai: OpenAiClient
   ) {}
-
-  async handleInbound(message: InboundMessage): Promise<CoachResult> {
-    const duplicate = await this.db
-      .select()
-      .from(processedWebhooks)
-      .where(
-        and(
-          eq(processedWebhooks.provider, "twilio"),
-          eq(processedWebhooks.externalId, message.messageSid)
-        )
-      )
-      .limit(1);
-
-    if (duplicate.length > 0) {
-      return {
-        intent: "unknown",
-        actions: [],
-        reply: "Already received. Send another message if you need anything else."
-      };
-    }
-
-    const user = await this.findOrCreateUser(message.from);
-    const result = await this.processMessage({
-      userId: user.id,
-      channel: "sms",
-      body: message.body,
-      metadata: {
-        messageSid: message.messageSid,
-        from: message.from,
-        to: message.to
-      }
-    });
-
-    await this.db.insert(processedWebhooks).values({
-      provider: "twilio",
-      externalId: message.messageSid
-    });
-
-    return result;
-  }
 
   async handleWebMessage(userId: string, body: string): Promise<CoachResult> {
     return this.processMessage({
@@ -109,18 +67,22 @@ export class ConversationEngine {
     });
   }
 
-  async simulate(phoneNumber: string, body: string): Promise<CoachResult> {
-    return this.handleInbound({
-      messageSid: `dev-${crypto.randomUUID()}`,
-      from: phoneNumber,
-      to: "dev",
-      body
+  async simulate(email: string, body: string): Promise<CoachResult> {
+    const user = await this.findUserByEmail(email);
+    return this.processMessage({
+      userId: user.id,
+      channel: "web",
+      body,
+      metadata: {
+        requestId: crypto.randomUUID(),
+        simulated: true
+      }
     });
   }
 
   private async processMessage(input: {
     userId: string;
-    channel: "sms" | "web" | "slack";
+    channel: "web" | "slack";
     body: string;
     metadata: Record<string, unknown>;
   }): Promise<CoachResult> {
@@ -205,31 +167,23 @@ export class ConversationEngine {
     return result;
   }
 
-  private async findOrCreateUser(phoneNumber: string) {
+  private async findUserByEmail(email: string) {
     const [existing] = await this.db
       .select()
       .from(users)
-      .where(eq(users.phoneNumber, phoneNumber))
+      .where(eq(users.email, email.toLowerCase()))
       .limit(1);
 
     if (existing) {
       return existing;
     }
 
-    const [created] = await this.db
-      .insert(users)
-      .values({ phoneNumber })
-      .returning();
-
-    if (!created) {
-      throw new Error("Failed to create user");
-    }
-    return created;
+    throw new Error("User was not found. Run pnpm db:seed.");
   }
 
   private async findOrCreateConversation(
     userId: string,
-    channel: "sms" | "web" | "slack"
+    channel: "web" | "slack"
   ): Promise<string> {
     const [existing] = await this.db
       .select()

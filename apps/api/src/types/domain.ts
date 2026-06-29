@@ -158,10 +158,3 @@ export interface CoachResult {
   actions: CoachAction[];
   intent: CoachIntent;
 }
-
-export interface InboundMessage {
-  messageSid: string;
-  from: string;
-  to: string;
-  body: string;
-}

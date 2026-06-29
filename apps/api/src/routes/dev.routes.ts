@@ -4,7 +4,7 @@ import { env } from "../env.js";
 import type { ConversationEngine } from "../services/conversation/conversation-engine.js";
 
 const simulateSchema = z.object({
-  phoneNumber: z.string().min(8),
+  email: z.string().email(),
   message: z.string().trim().min(1).max(1600)
 });
 
@@ -26,7 +26,7 @@ export async function devRoutes(
     }
 
     return conversationEngine.simulate(
-      parsed.data.phoneNumber,
+      parsed.data.email,
       parsed.data.message
     );
   });

@@ -8,7 +8,8 @@ import {
   weeklyReviews
 } from "../../db/schema.js";
 import { startOfPreviousWeek } from "../../utils/dates.js";
-import type { MessagingService } from "../messaging/messaging-service.js";
+import type { EmailClient } from "../../adapters/email/email.client.js";
+import type { SlackClient } from "../../adapters/slack/slack.client.js";
 import type { OpenAiClient } from "../openai/openai.client.js";
 import type { WorkoutEngine } from "../workout/workout-engine.js";
 import type { OwnerLookup } from "./daily-workout-job.js";
@@ -18,7 +19,18 @@ export class WeeklyReviewJob {
     private readonly db: Database,
     private readonly workoutEngine: WorkoutEngine,
     private readonly openai: OpenAiClient,
-    private readonly messaging: MessagingService
+    private readonly delivery: {
+      slack?: {
+        client: SlackClient;
+        channelId: string;
+        mentionUserId?: string;
+      };
+      email?: {
+        client: EmailClient;
+        from: string;
+        to: string;
+      };
+    }
   ) {}
 
   async run(owner: OwnerLookup) {
@@ -106,56 +118,95 @@ export class WeeklyReviewJob {
 
     const body = `${generated.summary} Next week: ${generated.recommendations.join(" ")}`;
 
-    if (!user.phoneNumber) {
+    if (!this.delivery.slack && !this.delivery.email) {
       return {
         sent: false,
-        reason: "Coach owner phone number is not configured",
+        reason: "No reminder delivery channel is configured",
         review: generated
       };
     }
 
-    if (!user.smsOptedIn) {
-      return {
-        sent: false,
-        reason: "User is not opted in",
-        review: generated
-      };
-    }
+    const deliveries: Array<{
+      channel: "slack" | "email";
+      externalId: string;
+      status: string;
+    }> = [];
 
-    const sent = await this.messaging.send({
-      to: user.phoneNumber,
-      body: body.slice(0, 1600)
-    });
-
-    const conversationId = await this.getConversationId(user.id);
-    await this.db.insert(messages).values({
-      conversationId,
-      direction: "outbound",
-      body: body.slice(0, 1600),
-      intent: "weekly_review",
-      metadata: {
+    if (this.delivery.slack) {
+      const text = this.delivery.slack.mentionUserId
+        ? `<@${this.delivery.slack.mentionUserId}> ${body}`
+        : body;
+      const sent = await this.delivery.slack.client.postMessage({
+        channel: this.delivery.slack.channelId,
+        text
+      });
+      deliveries.push({
+        channel: "slack",
+        externalId: sent.externalId,
+        status: sent.status
+      });
+      await this.storeOutboundMessage(user.id, "slack", text, {
         providerMessageId: sent.externalId,
         providerStatus: sent.status,
         weekStart,
         weekEnd
-      }
-    });
+      });
+    }
+
+    if (this.delivery.email) {
+      const sent = await this.delivery.email.client.send({
+        from: this.delivery.email.from,
+        to: this.delivery.email.to,
+        subject: `Coach AI Weekly Review: ${weekStart}`,
+        text: body
+      });
+      deliveries.push({
+        channel: "email",
+        externalId: sent.externalId,
+        status: sent.status
+      });
+      await this.storeOutboundMessage(user.id, "email", body, {
+        providerMessageId: sent.externalId,
+        providerStatus: sent.status,
+        weekStart,
+        weekEnd
+      });
+    }
 
     return {
       sent: true,
-      providerMessageId: sent.externalId,
+      deliveries,
       review: generated
     };
   }
 
-  private async getConversationId(userId: string): Promise<string> {
+  private async storeOutboundMessage(
+    userId: string,
+    channel: "slack" | "email",
+    body: string,
+    metadata: Record<string, unknown>
+  ): Promise<void> {
+    const conversationId = await this.getConversationId(userId, channel);
+    await this.db.insert(messages).values({
+      conversationId,
+      direction: "outbound",
+      body,
+      intent: "weekly_review",
+      metadata
+    });
+  }
+
+  private async getConversationId(
+    userId: string,
+    channel: "slack" | "email"
+  ): Promise<string> {
     const [existing] = await this.db
       .select()
       .from(conversations)
       .where(
         and(
           eq(conversations.userId, userId),
-          eq(conversations.channel, "sms")
+          eq(conversations.channel, channel)
         )
       )
       .orderBy(asc(conversations.createdAt))
@@ -167,10 +218,10 @@ export class WeeklyReviewJob {
 
     const [created] = await this.db
       .insert(conversations)
-      .values({ userId, channel: "sms" })
+      .values({ userId, channel })
       .returning();
     if (!created) {
-      throw new Error("Failed to create SMS conversation");
+      throw new Error(`Failed to create ${channel} conversation`);
     }
     return created.id;
   }

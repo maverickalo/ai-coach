@@ -5,7 +5,8 @@ import {
   messages,
   users
 } from "../../db/schema.js";
-import type { MessagingService } from "../messaging/messaging-service.js";
+import type { EmailClient } from "../../adapters/email/email.client.js";
+import type { SlackClient } from "../../adapters/slack/slack.client.js";
 import type { WorkoutEngine } from "../workout/workout-engine.js";
 
 export interface OwnerLookup {
@@ -17,7 +18,18 @@ export class DailyWorkoutJob {
   constructor(
     private readonly db: Database,
     private readonly workoutEngine: WorkoutEngine,
-    private readonly messaging: MessagingService
+    private readonly delivery: {
+      slack?: {
+        client: SlackClient;
+        channelId: string;
+        mentionUserId?: string;
+      };
+      email?: {
+        client: EmailClient;
+        from: string;
+        to: string;
+      };
+    }
   ) {}
 
   async run(owner: OwnerLookup) {
@@ -49,57 +61,94 @@ export class DailyWorkoutJob {
       workout
     );
 
-    if (!user.phoneNumber) {
+    if (!this.delivery.slack && !this.delivery.email) {
       return {
         sent: false,
-        reason: "Coach owner phone number is not configured",
+        reason: "No reminder delivery channel is configured",
         workoutId: workout.id,
         body
       };
     }
 
-    if (!user.smsOptedIn) {
-      return {
-        sent: false,
-        reason: "User is not opted in",
-        workoutId: workout.id,
-        body
-      };
+    const deliveries: Array<{
+      channel: "slack" | "email";
+      externalId: string;
+      status: string;
+    }> = [];
+
+    if (this.delivery.slack) {
+      const text = this.delivery.slack.mentionUserId
+        ? `<@${this.delivery.slack.mentionUserId}> ${body}`
+        : body;
+      const sent = await this.delivery.slack.client.postMessage({
+        channel: this.delivery.slack.channelId,
+        text
+      });
+      deliveries.push({
+        channel: "slack",
+        externalId: sent.externalId,
+        status: sent.status
+      });
+      await this.storeOutboundMessage(user.id, "slack", text, {
+        providerMessageId: sent.externalId,
+        providerStatus: sent.status,
+        workoutId: workout.id
+      });
     }
 
-    const sent = await this.messaging.send({
-      to: user.phoneNumber,
-      body
-    });
+    if (this.delivery.email) {
+      const sent = await this.delivery.email.client.send({
+        from: this.delivery.email.from,
+        to: this.delivery.email.to,
+        subject: `Coach AI: ${workout.name}`,
+        text: body
+      });
+      deliveries.push({
+        channel: "email",
+        externalId: sent.externalId,
+        status: sent.status
+      });
+      await this.storeOutboundMessage(user.id, "email", body, {
+        providerMessageId: sent.externalId,
+        providerStatus: sent.status,
+        workoutId: workout.id
+      });
+    }
 
-    const conversationId = await this.getConversationId(user.id);
+    return {
+      sent: true,
+      workoutId: workout.id,
+      deliveries
+    };
+  }
+
+  private async storeOutboundMessage(
+    userId: string,
+    channel: "slack" | "email",
+    body: string,
+    metadata: Record<string, unknown>
+  ): Promise<void> {
+    const conversationId = await this.getConversationId(userId, channel);
     await this.db.insert(messages).values({
       conversationId,
       direction: "outbound",
       body,
       intent: "daily_workout",
-      metadata: {
-        providerMessageId: sent.externalId,
-        providerStatus: sent.status,
-        workoutId: workout.id
-      }
+      metadata
     });
-
-    return {
-      sent: true,
-      workoutId: workout.id,
-      providerMessageId: sent.externalId
-    };
   }
 
-  private async getConversationId(userId: string): Promise<string> {
+  private async getConversationId(
+    userId: string,
+    channel: "slack" | "email"
+  ): Promise<string> {
     const [existing] = await this.db
       .select()
       .from(conversations)
       .where(
         and(
           eq(conversations.userId, userId),
-          eq(conversations.channel, "sms")
+          eq(conversations.channel, channel)
         )
       )
       .orderBy(asc(conversations.createdAt))
@@ -111,10 +160,10 @@ export class DailyWorkoutJob {
 
     const [created] = await this.db
       .insert(conversations)
-      .values({ userId, channel: "sms" })
+      .values({ userId, channel })
       .returning();
     if (!created) {
-      throw new Error("Failed to create SMS conversation");
+      throw new Error(`Failed to create ${channel} conversation`);
     }
     return created.id;
   }
