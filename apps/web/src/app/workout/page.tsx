@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { MessageCircle, X } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
@@ -24,7 +24,7 @@ const greeting: ChatMessageType = {
   createdAt: new Date().toISOString()
 };
 
-export default function WorkoutPage() {
+function WorkoutPageContent() {
   const searchParams = useSearchParams();
   const [workout, setWorkout] = useState<TodayWorkout | null>(null);
   const [messages, setMessages] = useState<ChatMessageType[]>([]);
@@ -353,5 +353,13 @@ export default function WorkoutPage() {
         </section>
       ) : null}
     </AppShell>
+  );
+}
+
+export default function WorkoutPage() {
+  return (
+    <Suspense fallback={<div className="settings-skeleton" />}>
+      <WorkoutPageContent />
+    </Suspense>
   );
 }
