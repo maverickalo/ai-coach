@@ -16,12 +16,12 @@ import { coachApi } from "@/lib/api";
 import type { Dashboard } from "@/lib/types";
 
 const readinessActions = [
-  "Short",
-  "Normal",
-  "Longer",
-  "More HYROX",
-  "Low energy",
-  "Sore"
+  { label: "Short", href: "/workout?quick=shorten" },
+  { label: "Normal", href: "/workout" },
+  { label: "Longer", href: "/workout?quick=session" },
+  { label: "More HYROX", href: "/workout?quick=hyrox" },
+  { label: "Low energy", href: "/workout?quick=shorten" },
+  { label: "Sore", href: "/workout?quick=session" }
 ];
 
 export default function CoachPage() {
@@ -119,7 +119,9 @@ export default function CoachPage() {
                   Open workout
                   <ArrowRight size={18} />
                 </Link>
-                <button type="button">Adjust Session</button>
+                <Link href="/workout?quick=session" className="hub-secondary-action">
+                  Adjust Session
+                </Link>
               </div>
             </section>
           ) : null}
@@ -133,9 +135,9 @@ export default function CoachPage() {
             </header>
             <div className="readiness-grid">
               {readinessActions.map((action) => (
-                <button key={action} type="button">
-                  {action}
-                </button>
+                <Link key={action.label} href={action.href}>
+                  {action.label}
+                </Link>
               ))}
             </div>
           </section>

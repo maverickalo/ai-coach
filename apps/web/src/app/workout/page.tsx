@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MessageCircle, X } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { ChatComposer } from "@/components/ChatComposer";
 import { ChatMessage, LoadingMessage } from "@/components/ChatMessage";
@@ -24,6 +25,7 @@ const greeting: ChatMessageType = {
 };
 
 export default function WorkoutPage() {
+  const searchParams = useSearchParams();
   const [workout, setWorkout] = useState<TodayWorkout | null>(null);
   const [messages, setMessages] = useState<ChatMessageType[]>([]);
   const [loadingWorkout, setLoadingWorkout] = useState(true);
@@ -35,6 +37,7 @@ export default function WorkoutPage() {
   const [quickCoachInput, setQuickCoachInput] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const threadEnd = useRef<HTMLDivElement>(null);
+  const initialQuickHandled = useRef(false);
 
   useEffect(() => {
     let active = true;
@@ -201,6 +204,31 @@ export default function WorkoutPage() {
     },
     []
   );
+
+  useEffect(() => {
+    if (!workout || initialQuickHandled.current) {
+      return;
+    }
+
+    const quick = searchParams.get("quick");
+    if (!quick) {
+      return;
+    }
+
+    const action =
+      quick === "hyrox"
+        ? "hyrox"
+        : quick === "shorten"
+          ? "shorten"
+          : "session";
+    initialQuickHandled.current = true;
+    void openQuickCoach({
+      action,
+      workoutId: workout.id,
+      exerciseId: null,
+      label: workout.name
+    });
+  }, [openQuickCoach, searchParams, workout]);
 
   const refineQuickCoach = useCallback(async () => {
     if (!quickCoach || !quickCoachInput.trim()) {

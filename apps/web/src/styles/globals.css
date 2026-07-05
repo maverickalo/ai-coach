@@ -297,9 +297,11 @@ a {
 }
 
 .hub-primary-action,
+.hub-secondary-action,
 .hub-actions button,
 .dashboard-panel button,
 .readiness-grid button,
+.readiness-grid a,
 .progress-search button {
   display: inline-flex;
   min-height: 46px;
@@ -319,9 +321,17 @@ a {
   color: #041007;
 }
 
+.hub-secondary-action {
+  flex: 0 0 auto;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
 .hub-actions button,
 .dashboard-panel button,
 .readiness-grid button,
+.readiness-grid a,
 .progress-search button {
   background: var(--surface-raised);
   border: 1px solid var(--border);
