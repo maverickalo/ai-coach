@@ -1,4 +1,5 @@
-import type { CurrentWorkout } from "../../types/domain.js";
+import type { CurrentWorkout, PrescribedExercise } from "../../types/domain.js";
+import { exerciseResource } from "./exercise-resources.js";
 
 interface WorkoutVariation {
   name: string;
@@ -299,4 +300,91 @@ export function buildScopedWorkoutModificationMessage(
   ]
     .filter(Boolean)
     .join("\n");
+}
+
+function replacementExercise(
+  name: string,
+  sortOrder: number,
+  sets: number,
+  reps: string,
+  equipment: string[],
+  muscles: string[]
+): PrescribedExercise {
+  const resource = exerciseResource(name);
+  return {
+    templateExerciseId: `modified-${name.toLowerCase().replace(/\W+/g, "-")}`,
+    sortOrder,
+    prescribedSets: sets,
+    prescribedReps: reps,
+    prescribedWeight: null,
+    notes: null,
+    exercise: {
+      id: `modified-${name.toLowerCase().replace(/\W+/g, "-")}`,
+      name,
+      category: "upper push",
+      primaryMuscles: muscles,
+      equipment,
+      instructions: resource.setup,
+      commonSubstitutions: [],
+      demoUrl: resource.demoUrl,
+      gifUrl: resource.gifUrl,
+      gifSearchUrl: resource.gifSearchUrl,
+      demoLabel: resource.demoLabel,
+      gifLabel: resource.gifLabel,
+      demoIsExact: resource.demoIsExact,
+      gifIsExact: resource.gifIsExact,
+      purpose: resource.purpose,
+      setup: resource.setup,
+      cues: resource.cues,
+      commonMistakes: resource.commonMistakes
+    }
+  };
+}
+
+export function buildModifiedStrengthWorkout(workout: CurrentWorkout): CurrentWorkout {
+  const baseExercises = workout.exercises
+    .filter(
+      (item) =>
+        !/\b(triceps? pushdown|overhead rope extension)\b/i.test(
+          item.exercise.name
+        )
+    )
+    .map((item, index) => ({ ...item, sortOrder: index + 1 }));
+
+  const replacements = [
+    replacementExercise(
+      "Close-Grip Bench Press",
+      baseExercises.length + 1,
+      4,
+      "6-8",
+      ["barbell", "bench", "rack"],
+      ["chest", "triceps", "shoulders"]
+    ),
+    replacementExercise(
+      "Landmine Press",
+      baseExercises.length + 2,
+      4,
+      "8-10/side",
+      ["landmine", "barbell"],
+      ["shoulders", "triceps", "chest"]
+    ),
+    replacementExercise(
+      "Dumbbell Skull Crusher",
+      baseExercises.length + 3,
+      4,
+      "10-12",
+      ["dumbbells", "bench"],
+      ["triceps"]
+    )
+  ];
+
+  return {
+    ...workout,
+    name: `${workout.name} — 2-Hour Strength`,
+    focus: "Chest, shoulders, and triceps strength. No HYROX/cardio.",
+    estimatedMinutes: 120,
+    status: "scheduled",
+    exercises: [...baseExercises, ...replacements],
+    conditioning: null
+  };
 }

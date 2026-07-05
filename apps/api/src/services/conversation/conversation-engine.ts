@@ -21,6 +21,7 @@ import type { MemoryEngine } from "../memory/memory-engine.js";
 import type { OpenAiClient } from "../openai/openai.client.js";
 import type { WorkoutEngine } from "../workout/workout-engine.js";
 import {
+  buildModifiedStrengthWorkout,
   buildScopedWorkoutModificationMessage,
   buildWorkoutVariationMessage,
   isScopedWorkoutModificationRequest
@@ -40,8 +41,42 @@ const HELP_REPLY =
 const STOP_REPLY =
   "Coach AI: Reminders are paused. Reply START when you want them back on.";
 
-function isWorkoutStartMessage(body: string): boolean {
-  return /\b(starting|start|started|begin|beginning)\b/i.test(body);
+export function isWorkoutStartMessage(body: string): boolean {
+  const normalized = body.trim().toLowerCase();
+  if (/\b(don'?t|do not|dont|not|no)\s+(start|begin|restart)\b/.test(normalized)) {
+    return false;
+  }
+  if (/\b(send|format|show|give|need)\b.*\b(start|day|morning|complete|full)\b/.test(normalized)) {
+    return false;
+  }
+  return /^(starting now|start workout|start the workout|start today'?s workout|begin workout|begin the workout|let'?s start|lets start|i'?m starting|im starting|i am starting|i'?m beginning|im beginning)\s*[.!?]*$/i.test(
+    normalized
+  );
+}
+
+export function isDailyWorkoutFormatRequest(body: string): boolean {
+  const normalized = body.trim().toLowerCase();
+  return (
+    /\b(send|show|give|format|post)\b.*\b(complete|full|morning|start of (the )?day|daily|fresh for the day|workout)\b/.test(
+      normalized
+    ) ||
+    /\bif you were sending it to me to start the day\b/.test(normalized) ||
+    /\bneed you to send me it\b/.test(normalized)
+  );
+}
+
+function isStopWorkoutRequest(body: string): boolean {
+  return /^\s*(stop|pause|end)\s+(the\s+)?workout\s*[.!?]?\s*$/i.test(body);
+}
+
+function isRestartWorkoutRequest(body: string): boolean {
+  return /^\s*(restart|resume)\s+(the\s+)?workout\s*[.!?]?\s*$/i.test(body);
+}
+
+function isGoBackWorkoutRequest(body: string): boolean {
+  return /^\s*(go back|back up|previous exercise|go back one)\s*[.!?]?\s*$/i.test(
+    body
+  );
 }
 
 function isExerciseDemoRequest(body: string): boolean {
@@ -171,8 +206,16 @@ export class ConversationEngine {
       const context = await this.contextBuilder.build(input.userId);
       if (isWorkoutStartMessage(input.body)) {
         result = await this.handleWorkoutStarted(input.userId, context);
+      } else if (isStopWorkoutRequest(input.body)) {
+        result = await this.handleWorkoutStopped(input.userId, context);
+      } else if (isRestartWorkoutRequest(input.body)) {
+        result = await this.handleWorkoutRestarted(input.userId, context);
+      } else if (isGoBackWorkoutRequest(input.body)) {
+        result = await this.handleWorkoutGoBack(input.userId, context);
       } else if (isCurrentExerciseSkipRequest(input.body)) {
         result = await this.handleCurrentExerciseSkipped(input.userId, context);
+      } else if (isDailyWorkoutFormatRequest(input.body)) {
+        result = this.handleDailyWorkoutFormatRequest(context);
       } else if (isScopedWorkoutModificationRequest(input.body)) {
         result = this.handleScopedWorkoutModification(input.body, context);
       } else if (isWorkoutMediaRequest(input.body)) {
@@ -369,6 +412,101 @@ export class ConversationEngine {
     };
   }
 
+  private async handleWorkoutStopped(
+    userId: string,
+    context: Awaited<ReturnType<CoachContextBuilder["build"]>>
+  ): Promise<CoachResult> {
+    if (!context.currentWorkout) {
+      return {
+        intent: "schedule_change",
+        actions: [],
+        reply: "I do not see an active workout to stop."
+      };
+    }
+
+    await this.workoutEngine.updateWorkoutStatus(
+      context.currentWorkout.id,
+      "scheduled"
+    );
+    await this.db.insert(coachEvents).values({
+      userId,
+      workoutId: context.currentWorkout.id,
+      eventType: "WorkoutPaused",
+      payload: { source: "conversation" }
+    });
+
+    return {
+      intent: "schedule_change",
+      actions: [],
+      reply:
+        "Paused the workout and stopped check-ins. Reply `restart workout` when you want me to resume from the next unlogged exercise."
+    };
+  }
+
+  private async handleWorkoutRestarted(
+    userId: string,
+    context: Awaited<ReturnType<CoachContextBuilder["build"]>>
+  ): Promise<CoachResult> {
+    if (!context.currentWorkout) {
+      return {
+        intent: "schedule_change",
+        actions: [],
+        reply: "I do not see today's workout yet. Ask me to send it first."
+      };
+    }
+
+    await this.workoutEngine.updateWorkoutStatus(
+      context.currentWorkout.id,
+      "in_progress"
+    );
+    const state = await this.workoutEngine.getWorkoutState(
+      context.currentWorkout.id
+    );
+    await this.db.insert(coachEvents).values({
+      userId,
+      workoutId: context.currentWorkout.id,
+      eventType: "WorkoutRestarted",
+      payload: { source: "conversation", nextExercise: state?.nextExercise }
+    });
+
+    return {
+      intent: "schedule_change",
+      actions: [],
+      reply: `Restarted. Pick back up with ${state?.nextExercise ?? "the next unlogged exercise"}. I’ll check in again about every ${env.WORKOUT_CHECK_IN_INTERVAL_MINUTES} minutes.`
+    };
+  }
+
+  private async handleWorkoutGoBack(
+    userId: string,
+    context: Awaited<ReturnType<CoachContextBuilder["build"]>>
+  ): Promise<CoachResult> {
+    if (!context.currentWorkout) {
+      return {
+        intent: "schedule_change",
+        actions: [],
+        reply: "I do not see today's workout yet."
+      };
+    }
+
+    const checkedExercise = await this.workoutEngine.getLastCheckInExerciseName(
+      context.currentWorkout.id
+    );
+    await this.db.insert(coachEvents).values({
+      userId,
+      workoutId: context.currentWorkout.id,
+      eventType: "WorkoutWentBack",
+      payload: { source: "conversation", exerciseName: checkedExercise }
+    });
+
+    return {
+      intent: "schedule_change",
+      actions: [],
+      reply: checkedExercise
+        ? `Got it. Go back to ${checkedExercise}. Send the weight, sets, reps, and RPE when you finish it, or say \`skip ${checkedExercise}\`.`
+        : "Got it. Which exercise do you want to go back to? Send it like `go back to bench` or log that exercise directly."
+    };
+  }
+
   private async handleCurrentExerciseSkipped(
     userId: string,
     context: Awaited<ReturnType<CoachContextBuilder["build"]>>
@@ -539,6 +677,39 @@ export class ConversationEngine {
       intent: "answer_exercise_question",
       actions: [],
       reply: this.workoutEngine.buildWorkoutMediaMessage(context.currentWorkout)
+    };
+  }
+
+  private handleDailyWorkoutFormatRequest(
+    context: Awaited<ReturnType<CoachContextBuilder["build"]>>
+  ): CoachResult {
+    if (!context.currentWorkout) {
+      return {
+        intent: "schedule_change",
+        actions: [],
+        reply: "I do not see today's workout yet."
+      };
+    }
+
+    const recentText = context.recentMessages
+      .map((message) => message.body)
+      .join("\n")
+      .toLowerCase();
+    const shouldUseModifiedPush =
+      /\b(close-grip bench|landmine press|skull crusher|no hyrox|2-hour strength|scoped edit)\b/.test(
+        recentText
+      );
+    const workout = shouldUseModifiedPush
+      ? buildModifiedStrengthWorkout(context.currentWorkout)
+      : context.currentWorkout;
+
+    return {
+      intent: "schedule_change",
+      actions: [],
+      reply: this.workoutEngine.buildDailyWorkoutMessage(
+        context.user.displayName,
+        workout
+      )
     };
   }
 

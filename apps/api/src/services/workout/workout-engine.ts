@@ -381,7 +381,12 @@ export class WorkoutEngine {
 
   async updateWorkoutStatus(
     workoutId: string,
-    status: "in_progress" | "completed" | "partially_completed" | "skipped"
+    status:
+      | "scheduled"
+      | "in_progress"
+      | "completed"
+      | "partially_completed"
+      | "skipped"
   ): Promise<void> {
     await this.db
       .update(workouts)

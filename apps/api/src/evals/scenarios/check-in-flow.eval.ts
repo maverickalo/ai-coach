@@ -1,4 +1,9 @@
-import { isCurrentExerciseSkipRequest } from "../../services/conversation/conversation-engine.js";
+import {
+  isCurrentExerciseSkipRequest,
+  isDailyWorkoutFormatRequest,
+  isWorkoutStartMessage
+} from "../../services/conversation/conversation-engine.js";
+import { buildModifiedStrengthWorkout } from "../../services/workout/workout-variation-library.js";
 import { WorkoutEngine } from "../../services/workout/workout-engine.js";
 import { pushWorkout } from "../fixtures/coach-context.fixture.js";
 import type { EvalScenario } from "../types.js";
@@ -28,6 +33,57 @@ export const checkInFlowScenarios: EvalScenario[] = [
     expect: {
       replyIncludes: ["log the checked exercise as skipped", "ask why"],
       replyExcludes: ["completed work"]
+    }
+  },
+  {
+    name: "start of day formatting request does not start workout",
+    run: () => ({
+      reply:
+        !isWorkoutStartMessage("No like if you were sending it to me to start the day") &&
+        isDailyWorkoutFormatRequest("No like if you were sending it to me to start the day")
+          ? "send full daily workout format"
+          : "Good. Start with Bench Press.",
+      actions: []
+    }),
+    expect: {
+      replyIncludes: ["send full daily workout format"],
+      replyExcludes: ["Start with Bench Press"]
+    }
+  },
+  {
+    name: "do not start correction does not start workout",
+    run: () => ({
+      reply: !isWorkoutStartMessage("no dont start i need you to send me it")
+        ? "send full daily workout format"
+        : "Good. Start with Bench Press.",
+      actions: []
+    }),
+    expect: {
+      replyIncludes: ["send full daily workout format"],
+      replyExcludes: ["Start with Bench Press"]
+    }
+  },
+  {
+    name: "modified push can be sent as fresh daily workout format",
+    run: () => ({
+      reply: engine.buildDailyWorkoutMessage(
+        "Sean",
+        buildModifiedStrengthWorkout(pushWorkout)
+      ),
+      actions: []
+    }),
+    expect: {
+      replyIncludes: [
+        "Coach AI",
+        "2-Hour Strength",
+        "Quick breakdown",
+        "Close-Grip Bench Press",
+        "Landmine Press",
+        "Dumbbell Skull Crusher",
+        "Form:",
+        "starting now"
+      ],
+      replyExcludes: ["Triceps Pushdown", "Overhead Rope Extension"]
     }
   }
 ];
