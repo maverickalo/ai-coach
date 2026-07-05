@@ -17,6 +17,13 @@ export function BottomNav() {
   return (
     <nav className="bottom-nav" aria-label="Main navigation">
       <div className="bottom-nav-inner">
+        <div className="nav-brand" aria-hidden="true">
+          <span>CA</span>
+          <div>
+            <strong>Coach AI</strong>
+            <small>Training OS</small>
+          </div>
+        </div>
         {items.map((item) => {
           const Icon = item.icon;
           const active = pathname.startsWith(item.href);
