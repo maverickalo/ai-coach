@@ -21,6 +21,7 @@
     "db:migrate": "pnpm --filter @coach-ai/api db:migrate",
     "db:push": "pnpm --filter @coach-ai/api db:push",
     "db:seed": "pnpm --filter @coach-ai/api db:seed",
+    "db:reset-new-user": "pnpm --filter @coach-ai/api db:reset-new-user",
     "db:studio": "pnpm --filter @coach-ai/api db:studio"
   },
   "devDependencies": {

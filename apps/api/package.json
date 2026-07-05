@@ -18,6 +18,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:seed": "tsx src/db/seed.ts",
+    "db:reset-new-user": "tsx src/db/reset-new-user.ts",
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
