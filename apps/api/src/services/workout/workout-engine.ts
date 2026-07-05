@@ -693,8 +693,13 @@ export class WorkoutEngine {
       const rpe = last.rpe ? `, RPE ${last.rpe}` : "";
       return `Last ${last.scheduledDate}: ${load} ${volume}${rpe}`;
     };
-    const mainWork = workout.exercises
-      .filter((item) => item.notes !== "Warm-up")
+    const mainExercises = workout.exercises.filter(
+      (item) => item.notes !== "Warm-up"
+    );
+    const quickBreakdown = mainExercises
+      .map((item) => `• *${item.exercise.name}* — ${formatPrescription(item)}`)
+      .join("\n");
+    const details = mainExercises
       .map((item) => {
         const prescription = formatPrescription(item);
         const cues = (
@@ -705,7 +710,7 @@ export class WorkoutEngine {
           .slice(0, 2)
           .join(" • ");
         return [
-          `*${item.sortOrder}. ${item.exercise.name}* - ${prescription}`,
+          `*${item.sortOrder}. ${item.exercise.name}* — ${prescription}`,
           item.exercise.purpose ? `   _Why:_ ${item.exercise.purpose}` : null,
           cues ? `   _Cues:_ ${cues}` : null,
           `   ${formatLastPerformance(item)}`,
@@ -736,8 +741,10 @@ export class WorkoutEngine {
         ? `⏱️ *Target:* ${workout.estimatedMinutes} minutes`
         : null,
       "📌 *Strength is the source of truth.* Cardio/HYROX stays optional unless you ask to change the lift.",
-      "💪 *Main work*",
-      mainWork,
+      "💪 *Quick breakdown*",
+      quickBreakdown,
+      "📋 *Details*",
+      details,
       conditioning,
       "📝 *Log format:* `Back Squat 225 5x8 RPE 7, RDL 185 4x10 hard, skipped step-ups`",
       "🎞️ Reply `form guide` or `GIFs for today` and I’ll post the full guide in this workout thread.",

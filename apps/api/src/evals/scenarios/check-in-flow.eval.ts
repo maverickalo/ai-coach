@@ -13,7 +13,7 @@ export const checkInFlowScenarios: EvalScenario[] = [
       actions: []
     }),
     expect: {
-      replyIncludes: ["starting now", "check in", "Bench Press"],
+      replyIncludes: ["Quick breakdown", "Details", "starting now", "check in", "Bench Press"],
       replyExcludes: ["SMS"]
     }
   },
