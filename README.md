@@ -132,13 +132,14 @@ in `COACH_TIMEZONE` and posts the daily reminder through configured delivery
 channels. The daily job is idempotent per workout/channel, so restarts do not
 spam duplicate reminders.
 
-Daily workout posts and in-session check-ins include exercise demo links for
-the relevant movements. You can also ask Slack for a demo directly with
+Daily workout posts include exercise demo links for the relevant movements.
+You can also ask Slack for a demo directly with
 messages like `bench gif`, `show me RDL`, or `how do I do step-ups`.
 
-During a workout, reply `starting now` and Coach AI will check in about the
-next unlogged main exercise. You can reshape the day with `short`, `standard`,
-`long`, `strength`, or `HYROX`. HYROX mode turns the strength session into
+During a workout, reply `starting now`, then send each lift as you finish it.
+Timed Slack check-ins are disabled by default; set
+`WORKOUT_CHECK_INS_ENABLED=true` if you want polling prompts. You can reshape
+the day with `short`, `standard`, `long`, `strength`, or `HYROX`. HYROX mode turns the strength session into
 compromised strength work with run/row/bike segments based on recent training,
 pain notes, and logged conditioning.
 

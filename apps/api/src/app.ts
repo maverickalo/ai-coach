@@ -155,7 +155,7 @@ export async function buildApp() {
         })
       : null;
   const workoutCheckInScheduler =
-    env.NODE_ENV === "production" && slackDelivery
+    env.NODE_ENV === "production" && slackDelivery && env.WORKOUT_CHECK_INS_ENABLED
       ? new WorkoutCheckInScheduler(database.db, workoutEngine, slackDelivery, {
           intervalMinutes: env.WORKOUT_CHECK_IN_INTERVAL_MINUTES,
           logger: app.log

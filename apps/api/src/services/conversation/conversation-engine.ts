@@ -12,6 +12,8 @@ import { env } from "../../env.js";
 import type {
   CoachAction,
   CoachResult,
+  CurrentWorkout,
+  ParsedExerciseLog,
   ParsedWorkoutLog
 } from "../../types/domain.js";
 import { dateInTimeZone } from "../../utils/dates.js";
@@ -102,6 +104,12 @@ function isGoBackWorkoutRequest(body: string): boolean {
   );
 }
 
+function isNextExerciseRequest(body: string): boolean {
+  return /^\s*(next exercise|move on|next lift|advance|go next)\s*[.!?]?\s*$/i.test(
+    body
+  );
+}
+
 function isExerciseDemoRequest(body: string): boolean {
   return /\b(gif|demo|video|show me|how do i|how to)\b/i.test(body);
 }
@@ -152,6 +160,83 @@ export function isCurrentExerciseSkipRequest(body: string): boolean {
   return /^\s*(skip|skipping|skipped)(\s+(it|this|that|for now))?\s*[.!?]?\s*$/i.test(
     body
   );
+}
+
+const ordinalSetNumbers: Record<string, number> = {
+  first: 1,
+  "1st": 1,
+  second: 2,
+  "2nd": 2,
+  third: 3,
+  "3rd": 3,
+  fourth: 4,
+  "4th": 4,
+  fifth: 5,
+  "5th": 5,
+  sixth: 6,
+  "6th": 6
+};
+
+export function parseSetOnlyLog(
+  body: string,
+  exerciseName: string | null
+): ParsedWorkoutLog | null {
+  if (!exerciseName) {
+    return null;
+  }
+
+  const normalized = body.trim().toLowerCase();
+  const setNumberMatch = normalized.match(
+    /\b(first|1st|second|2nd|third|3rd|fourth|4th|fifth|5th|sixth|6th)\s+set\b|\bset\s*(\d+)\b/
+  );
+  const setNumber =
+    (setNumberMatch?.[1] ? ordinalSetNumbers[setNumberMatch[1]] : undefined) ??
+    (setNumberMatch?.[2] ? Number(setNumberMatch[2]) : null);
+
+  if (!setNumber) {
+    return null;
+  }
+
+  const performanceMatch = body.match(
+    /(\d+(?:\.\d+)?)\s*(?:lb|lbs)?\s*[xX]\s*(\d+)/
+  );
+  if (!performanceMatch?.[1] || !performanceMatch[2]) {
+    return null;
+  }
+
+  const rpeMatch = body.match(/rpe\s*(10|[1-9](?:\.\d)?)/i);
+  const weight = Number(performanceMatch[1]);
+  const reps = Number(performanceMatch[2]);
+  const rpe = rpeMatch?.[1] ? Number(rpeMatch[1]) : null;
+  const exercise: ParsedExerciseLog = {
+    exerciseName,
+    status: "completed",
+    sets: setNumber,
+    reps: String(reps),
+    weight,
+    rpe,
+    setDetails: [
+      {
+        setNumber,
+        reps,
+        weight,
+        rpe,
+        notes: body.trim()
+      }
+    ],
+    difficulty: null,
+    skippedReason: null,
+    substituteExerciseName: null,
+    notes: body.trim()
+  };
+
+  return {
+    exercises: [exercise],
+    conditioning: [],
+    pain: [],
+    notes: [],
+    workoutCompletion: "unknown"
+  };
 }
 
 export class ConversationEngine {
@@ -235,6 +320,8 @@ export class ConversationEngine {
         result = await this.handleWorkoutRestarted(input.userId, context);
       } else if (isGoBackWorkoutRequest(input.body)) {
         result = await this.handleWorkoutGoBack(input.userId, context);
+      } else if (isNextExerciseRequest(input.body)) {
+        result = await this.handleNextExercise(input.userId, context);
       } else if (isCurrentExerciseSkipRequest(input.body)) {
         result = await this.handleCurrentExerciseSkipped(input.userId, context);
       } else if (isDailyWorkoutFormatRequest(input.body)) {
@@ -252,6 +339,28 @@ export class ConversationEngine {
       } else if (isMissedDayRequest(input.body)) {
         result = await this.handleMissedDayRequest(input.userId);
       } else {
+        const setOnlyLog = await this.parseSetOnlyLogForCurrentWorkout(
+          input.body,
+          context.currentWorkout
+        );
+        if (setOnlyLog && context.currentWorkout) {
+          result = await this.coachEngine.respond({
+            message: input.body,
+            intent: "log_workout",
+            context,
+            parsedWorkout: setOnlyLog
+          });
+
+          await this.applyActions(
+            input.userId,
+            context.currentWorkout?.id ?? null,
+            result.actions
+          );
+          await this.workoutEngine.updateWorkoutStatus(
+            context.currentWorkout.id,
+            "in_progress"
+          );
+        } else {
         const intent = await classifyIntent(input.body, this.openai);
         const shouldParse =
           intent === "log_workout" ||
@@ -292,6 +401,7 @@ export class ConversationEngine {
               )
             };
           }
+        }
         }
       }
     }
@@ -411,7 +521,10 @@ export class ConversationEngine {
       eventType: "WorkoutStarted",
       payload: {
         source: "conversation",
-        checkInIntervalMinutes: env.WORKOUT_CHECK_IN_INTERVAL_MINUTES
+        checkInsEnabled: env.WORKOUT_CHECK_INS_ENABLED,
+        checkInIntervalMinutes: env.WORKOUT_CHECK_INS_ENABLED
+          ? env.WORKOUT_CHECK_IN_INTERVAL_MINUTES
+          : null
       }
     });
 
@@ -422,7 +535,7 @@ export class ConversationEngine {
     return {
       intent: "general_chat",
       actions: [],
-      reply: `Good. Start with ${firstMainExercise?.exercise.name ?? "the first main lift"}. I'll check in about every ${env.WORKOUT_CHECK_IN_INTERVAL_MINUTES} minutes and ask how the work is going.`
+      reply: `Good. Start with ${firstMainExercise?.exercise.name ?? "the first main lift"}. Send each lift as you finish it, like \`Bench Press 135 5x8 RPE 8\`, and I’ll log it.`
     };
   }
 
@@ -486,7 +599,7 @@ export class ConversationEngine {
     return {
       intent: "schedule_change",
       actions: [],
-      reply: `Restarted. Pick back up with ${state?.nextExercise ?? "the next unlogged exercise"}. I’ll check in again about every ${env.WORKOUT_CHECK_IN_INTERVAL_MINUTES} minutes.`
+      reply: `Restarted. Pick back up with ${state?.nextExercise ?? "the next unlogged exercise"}. Send the lift when you finish it and I’ll log it.`
     };
   }
 
@@ -518,6 +631,65 @@ export class ConversationEngine {
       reply: checkedExercise
         ? `Got it. Go back to ${checkedExercise}. Send the weight, sets, reps, and RPE when you finish it, or say \`skip ${checkedExercise}\`.`
         : "Got it. Which exercise do you want to go back to? Send it like `go back to bench` or log that exercise directly."
+    };
+  }
+
+  private async parseSetOnlyLogForCurrentWorkout(
+    body: string,
+    currentWorkout: CurrentWorkout | null
+  ): Promise<ParsedWorkoutLog | null> {
+    if (!currentWorkout) {
+      return null;
+    }
+
+    const lastLoggedExercise = await this.workoutEngine.getLastLoggedExerciseName(
+      currentWorkout.id
+    );
+    const state = await this.workoutEngine.getWorkoutState(currentWorkout.id);
+    return parseSetOnlyLog(
+      body,
+      state?.currentExercise ?? lastLoggedExercise ?? null
+    );
+  }
+
+  private async handleNextExercise(
+    userId: string,
+    context: Awaited<ReturnType<CoachContextBuilder["build"]>>
+  ): Promise<CoachResult> {
+    if (!context.currentWorkout) {
+      return {
+        intent: "schedule_change",
+        actions: [],
+        reply: "I do not see today's workout yet."
+      };
+    }
+
+    const state = await this.workoutEngine.getWorkoutState(
+      context.currentWorkout.id
+    );
+    if (!state?.currentExercise) {
+      return {
+        intent: "schedule_change",
+        actions: [],
+        reply: "I do not see a current exercise to advance from."
+      };
+    }
+
+    await this.workoutEngine.markExerciseAdvanced(
+      userId,
+      context.currentWorkout.id,
+      state.currentExercise
+    );
+    const nextState = await this.workoutEngine.getWorkoutState(
+      context.currentWorkout.id
+    );
+
+    return {
+      intent: "schedule_change",
+      actions: [],
+      reply: nextState?.currentExercise
+        ? `Moving on. Next up: ${nextState.currentExercise}. Send the set or lift when you finish it.`
+        : "Moving on. I do not see another planned lift after that."
     };
   }
 

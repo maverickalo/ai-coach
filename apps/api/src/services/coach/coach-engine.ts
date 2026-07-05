@@ -24,6 +24,9 @@ export class CoachEngine {
     const missingExercises = input.parsedWorkout
       ? findMissingExercises(input.context.currentWorkout, input.parsedWorkout)
       : [];
+    const shouldAskAboutMissingExercises =
+      input.parsedWorkout?.workoutCompletion === "complete" ||
+      input.parsedWorkout?.workoutCompletion === "partial";
 
     const unexplainedSkip = input.parsedWorkout?.exercises.find(
       (exercise) =>
@@ -37,7 +40,11 @@ export class CoachEngine {
           question: `You skipped ${unexplainedSkip.exerciseName}. Was that because of time, discomfort, or preference?`
         }
       });
-    } else if (missingExercises.length > 0 && input.intent === "log_workout") {
+    } else if (
+      shouldAskAboutMissingExercises &&
+      missingExercises.length > 0 &&
+      input.intent === "log_workout"
+    ) {
       actions.push({
         type: "ask_follow_up",
         payload: {

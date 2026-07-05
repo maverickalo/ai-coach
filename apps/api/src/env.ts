@@ -2,6 +2,10 @@ import "dotenv/config";
 import { z } from "zod";
 
 const optionalSecret = z.string().trim().min(1).optional();
+const booleanFlag = z
+  .enum(["true", "false", "1", "0", "yes", "no", "on", "off"])
+  .default("false")
+  .transform((value) => ["true", "1", "yes", "on"].includes(value));
 
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -32,6 +36,7 @@ const envSchema = z.object({
     .int()
     .positive()
     .default(10),
+  WORKOUT_CHECK_INS_ENABLED: booleanFlag,
   INTERNAL_JOB_SECRET: optionalSecret
 });
 

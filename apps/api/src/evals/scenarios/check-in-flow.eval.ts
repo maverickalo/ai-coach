@@ -12,14 +12,14 @@ const engine = new WorkoutEngine({} as never);
 
 export const checkInFlowScenarios: EvalScenario[] = [
   {
-    name: "daily workout starts the check-in flow",
+    name: "daily workout starts manual logging flow without timer polling",
     run: () => ({
       reply: engine.buildDailyWorkoutMessage("Sean", pushWorkout),
       actions: []
     }),
     expect: {
-      replyIncludes: ["Quick breakdown", "Details", "starting now", "check in", "Bench Press"],
-      replyExcludes: ["SMS"]
+      replyIncludes: ["Quick breakdown", "Details", "starting now", "Send each lift", "Bench Press"],
+      replyExcludes: ["SMS", "check in during the session", "every 10 minutes"]
     }
   },
   {

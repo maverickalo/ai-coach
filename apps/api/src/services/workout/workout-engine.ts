@@ -426,6 +426,47 @@ export class WorkoutEngine {
     return rows.map((row) => row.name);
   }
 
+  async getLastLoggedExerciseName(workoutId: string): Promise<string | null> {
+    const [row] = await this.db
+      .select({ name: exercises.name })
+      .from(exerciseLogs)
+      .innerJoin(exercises, eq(exerciseLogs.exerciseId, exercises.id))
+      .where(eq(exerciseLogs.workoutId, workoutId))
+      .orderBy(desc(exerciseLogs.updatedAt))
+      .limit(1);
+
+    return row?.name ?? null;
+  }
+
+  async markExerciseAdvanced(
+    userId: string,
+    workoutId: string,
+    exerciseName: string
+  ): Promise<void> {
+    await this.db.insert(coachEvents).values({
+      userId,
+      workoutId,
+      eventType: "ExerciseAdvanced",
+      payload: { exerciseName }
+    });
+  }
+
+  private async getAdvancedExerciseNames(workoutId: string): Promise<string[]> {
+    const rows = await this.db
+      .select({ payload: coachEvents.payload })
+      .from(coachEvents)
+      .where(
+        and(
+          eq(coachEvents.workoutId, workoutId),
+          eq(coachEvents.eventType, "ExerciseAdvanced")
+        )
+      );
+
+    return rows
+      .map((row) => row.payload.exerciseName)
+      .filter((name): name is string => typeof name === "string");
+  }
+
   async getLastCheckInExerciseName(workoutId: string): Promise<string | null> {
     const [event] = await this.db
       .select({ payload: coachEvents.payload })
@@ -459,20 +500,48 @@ export class WorkoutEngine {
       .innerJoin(exercises, eq(exerciseLogs.exerciseId, exercises.id))
       .where(eq(exerciseLogs.workoutId, workoutId));
 
+    const mainExercises = workout.exercises.filter((item) => item.notes !== "Warm-up");
+    const prescribedByName = new Map(
+      mainExercises.map((item) => [
+        item.exercise.name.toLowerCase(),
+        item.prescribedSets
+      ])
+    );
+    const advancedNames = new Set(
+      (await this.getAdvancedExerciseNames(workoutId)).map((name) =>
+        name.toLowerCase()
+      )
+    );
+    const isFulfilled = (log: (typeof logRows)[number]) => {
+      if (log.status === "skipped") {
+        return true;
+      }
+      if (advancedNames.has(log.exerciseName.toLowerCase())) {
+        return true;
+      }
+      const prescribedSets = prescribedByName.get(log.exerciseName.toLowerCase());
+      if (!prescribedSets) {
+        return log.status === "completed" || log.status === "partial";
+      }
+      return (log.setsCompleted ?? 0) >= prescribedSets;
+    };
     const completedExercises = logRows
-      .filter((log) => log.status === "completed" || log.status === "partial")
+      .filter((log) => log.status !== "skipped" && isFulfilled(log))
       .map((log) => log.exerciseName);
     const skippedExercises = logRows
       .filter((log) => log.status === "skipped")
       .map((log) => log.exerciseName);
-    const loggedNames = new Set(logRows.map((log) => log.exerciseName.toLowerCase()));
-    const mainExercises = workout.exercises.filter((item) => item.notes !== "Warm-up");
+    const fulfilledNames = new Set(
+      logRows
+        .filter(isFulfilled)
+        .map((log) => log.exerciseName.toLowerCase())
+    );
     const next = mainExercises.find(
-      (item) => !loggedNames.has(item.exercise.name.toLowerCase())
+      (item) => !fulfilledNames.has(item.exercise.name.toLowerCase())
     );
     const lastCheckInExercise = await this.getLastCheckInExerciseName(workoutId);
     const currentExercise =
-      lastCheckInExercise && !loggedNames.has(lastCheckInExercise.toLowerCase())
+      lastCheckInExercise && !fulfilledNames.has(lastCheckInExercise.toLowerCase())
         ? lastCheckInExercise
         : next?.exercise.name ?? null;
     const currentLog = logRows.find(
@@ -753,7 +822,7 @@ export class WorkoutEngine {
       conditioning,
       "📝 *Log format:* `Back Squat 225 5x8 RPE 7, RDL 185 4x10 hard, skipped step-ups`",
       "🎞️ Reply `form guide` or `GIFs for today` and I’ll post the full guide in this workout thread.",
-      "▶️ Reply `starting now` when you begin. I’ll track where you are and check in during the session."
+      "▶️ Reply `starting now` when you begin. Send each lift as you finish it and I’ll track the session."
     ]
       .filter(Boolean)
       .join("\n\n");
