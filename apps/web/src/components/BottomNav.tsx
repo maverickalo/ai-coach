@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Dumbbell, MessageCircle, Settings } from "lucide-react";
+import { Dumbbell, LayoutDashboard, Settings, TrendingUp } from "lucide-react";
 
 const items = [
-  { href: "/coach", label: "Coach", icon: MessageCircle },
-  { href: "/workouts", label: "Workouts", icon: Dumbbell },
+  { href: "/coach", label: "Today", icon: LayoutDashboard },
+  { href: "/workout", label: "Workout", icon: Dumbbell },
+  { href: "/progress", label: "Progress", icon: TrendingUp },
   { href: "/settings", label: "Settings", icon: Settings }
 ];
 

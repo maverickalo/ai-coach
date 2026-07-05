@@ -25,6 +25,21 @@ const profileSchema = z.object({
   injuryNotes: z.string().trim().max(4000)
 });
 
+const exerciseLogSchema = z.object({
+  exerciseId: z.uuid(),
+  status: z.enum(["completed", "partial", "skipped"]),
+  sets: z.number().int().min(0).max(20).nullable(),
+  reps: z.string().trim().max(40).nullable(),
+  weight: z.number().min(0).max(2000).nullable(),
+  rpe: z.number().min(1).max(10).nullable(),
+  skippedReason: z.string().trim().max(300).nullable(),
+  notes: z.string().trim().max(1000).nullable()
+});
+
+const progressQuerySchema = z.object({
+  q: z.string().trim().max(200).optional()
+});
+
 async function authenticatedUser(
   request: FastifyRequest,
   auth: SupabaseAuthService
@@ -52,6 +67,11 @@ export async function webRoutes(
     return dependencies.portal.getToday(user.id);
   });
 
+  app.get("/dashboard", async (request) => {
+    const user = await authenticatedUser(request, dependencies.auth);
+    return dependencies.portal.getDashboard(user.id);
+  });
+
   app.get("/messages", async (request) => {
     const user = await authenticatedUser(request, dependencies.auth);
     return dependencies.portal.getMessages(user.id);
@@ -71,9 +91,41 @@ export async function webRoutes(
     return { reply: result.reply };
   });
 
+  app.post("/workouts/:workoutId/exercise-logs", async (request, reply) => {
+    const user = await authenticatedUser(request, dependencies.auth);
+    const params = z.object({ workoutId: z.uuid() }).safeParse(request.params);
+    if (!params.success) {
+      return reply.code(400).send({ error: "Invalid workout" });
+    }
+
+    const parsed = exerciseLogSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({
+        error: "Invalid exercise log",
+        details: parsed.error.flatten()
+      });
+    }
+
+    return dependencies.portal.logExercise(
+      user.id,
+      params.data.workoutId,
+      parsed.data
+    );
+  });
+
   app.get("/workouts", async (request) => {
     const user = await authenticatedUser(request, dependencies.auth);
     return dependencies.portal.getWorkouts(user.id);
+  });
+
+  app.get("/progress", async (request, reply) => {
+    const user = await authenticatedUser(request, dependencies.auth);
+    const parsed = progressQuerySchema.safeParse(request.query);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: "Invalid progress query" });
+    }
+
+    return dependencies.portal.getProgress(user.id, parsed.data.q ?? "");
   });
 
   app.get("/profile", async (request) => {

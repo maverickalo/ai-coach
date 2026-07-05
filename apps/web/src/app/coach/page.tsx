@@ -1,150 +1,210 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import {
+  Activity,
+  ArrowRight,
+  CalendarDays,
+  Dumbbell,
+  Flame,
+  Timer,
+  TrendingUp
+} from "lucide-react";
 import { AppShell } from "@/components/AppShell";
-import { ChatComposer } from "@/components/ChatComposer";
-import { ChatMessage, LoadingMessage } from "@/components/ChatMessage";
-import { QuickActions } from "@/components/QuickActions";
-import { TodayWorkoutCard } from "@/components/TodayWorkoutCard";
 import { coachApi } from "@/lib/api";
-import type {
-  ChatMessage as ChatMessageType,
-  TodayWorkout
-} from "@/lib/types";
+import type { Dashboard } from "@/lib/types";
 
-const greeting: ChatMessageType = {
-  id: "coach-greeting",
-  role: "coach",
-  body: "Morning. Today's session is ready. Send what you did, what you skipped, or what you need adjusted.",
-  createdAt: new Date().toISOString()
-};
+const readinessActions = [
+  "Short",
+  "Normal",
+  "Longer",
+  "More HYROX",
+  "Low energy",
+  "Sore"
+];
 
 export default function CoachPage() {
-  const [workout, setWorkout] = useState<TodayWorkout | null>(null);
-  const [messages, setMessages] = useState<ChatMessageType[]>([]);
-  const [loadingWorkout, setLoadingWorkout] = useState(true);
-  const [loadingMessages, setLoadingMessages] = useState(true);
-  const [sending, setSending] = useState(false);
-  const threadEnd = useRef<HTMLDivElement>(null);
+  const [dashboard, setDashboard] = useState<Dashboard | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
 
     async function load() {
-      const [todayResult, messagesResult] = await Promise.allSettled([
-        coachApi.today(),
-        coachApi.messages()
-      ]);
-
-      if (!active) {
-        return;
+      try {
+        const result = await coachApi.dashboard();
+        if (active) {
+          setDashboard(result);
+          setError(null);
+        }
+      } catch (caught) {
+        if (active) {
+          setError(
+            caught instanceof Error ? caught.message : "Unable to load dashboard"
+          );
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
       }
-
-      if (todayResult.status === "fulfilled") {
-        setWorkout(todayResult.value);
-      }
-      if (messagesResult.status === "fulfilled") {
-        setMessages(
-          messagesResult.value.length > 0 ? messagesResult.value : [greeting]
-        );
-      } else {
-        setMessages([greeting]);
-      }
-      setLoadingWorkout(false);
-      setLoadingMessages(false);
     }
 
     void load();
+    const interval = window.setInterval(() => void load(), 10000);
+
     return () => {
       active = false;
+      window.clearInterval(interval);
     };
   }, []);
 
-  useEffect(() => {
-    threadEnd.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [messages, sending]);
-
-  const send = useCallback(
-    async (body: string) => {
-      if (sending) {
-        return;
-      }
-
-      const optimistic: ChatMessageType = {
-        id: crypto.randomUUID(),
-        role: "user",
-        body,
-        createdAt: new Date().toISOString(),
-        pending: true
-      };
-      setMessages((current) => [...current, optimistic]);
-      setSending(true);
-
-      try {
-        const result = await coachApi.chat(body);
-        setMessages((current) => [
-          ...current.map((message) =>
-            message.id === optimistic.id
-              ? { ...message, pending: false }
-              : message
-          ),
-          {
-            id: crypto.randomUUID(),
-            role: "coach",
-            body: result.reply,
-            createdAt: new Date().toISOString()
-          }
-        ]);
-      } catch (error) {
-        setMessages((current) => [
-          ...current.map((message) =>
-            message.id === optimistic.id
-              ? { ...message, pending: false }
-              : message
-          ),
-          {
-            id: crypto.randomUUID(),
-            role: "coach",
-            body:
-              error instanceof Error
-                ? error.message
-                : "I couldn't send that. Try again.",
-            createdAt: new Date().toISOString()
-          }
-        ]);
-      } finally {
-        setSending(false);
-      }
-    },
-    [sending]
-  );
+  const today = dashboard?.today;
+  const mainExercises =
+    today?.exercises.filter((item) => item.notes !== "Warm-up").slice(0, 5) ??
+    [];
 
   return (
-    <AppShell
-      title="Coach"
-      subtitle="HYROX strength coach"
-      className="coach-shell"
-    >
-      <TodayWorkoutCard
-        workout={workout}
-        loading={loadingWorkout}
-      />
+    <AppShell title="Today" subtitle="Training Hub" className="dashboard-shell">
+      {loading ? (
+        <div className="settings-skeleton" />
+      ) : error ? (
+        <p className="page-message error">{error}</p>
+      ) : (
+        <>
+          <section className="hub-hero">
+            <div>
+              <p className="card-kicker">Today&apos;s workout</p>
+              <h2>{today?.name ?? "No workout scheduled"}</h2>
+              <p>
+                {today?.focus ??
+                  "Recovery day. Keep movement easy unless Coach updates the plan."}
+              </p>
+            </div>
+            <span className="hub-hero-icon" aria-hidden="true">
+              <Dumbbell size={24} />
+            </span>
+          </section>
 
-      <QuickActions onSelect={send} disabled={sending} />
+          {today ? (
+            <section className="hub-card today-summary">
+              <div className="hub-meta-row">
+                <span>
+                  <Timer size={17} />
+                  {today.estimatedMinutes ?? 60} min
+                </span>
+                <span>
+                  <Activity size={17} />
+                  Strength source of truth
+                </span>
+              </div>
 
-      <section className="chat-thread" aria-label="Conversation with Coach">
-        {loadingMessages ? (
-          <LoadingMessage />
-        ) : (
-          messages.map((message) => (
-            <ChatMessage key={message.id} message={message} />
-          ))
-        )}
-        {sending ? <LoadingMessage /> : null}
-        <div ref={threadEnd} />
-      </section>
+              <div className="hub-exercise-list">
+                {mainExercises.map((item) => (
+                  <p key={item.templateExerciseId}>
+                    <strong>{item.exercise.name}</strong>
+                    <span>
+                      {[item.prescribedSets, item.prescribedReps]
+                        .filter(Boolean)
+                        .join(" x ") || "as prescribed"}
+                    </span>
+                  </p>
+                ))}
+              </div>
 
-      <ChatComposer onSend={send} disabled={sending} />
+              <div className="hub-actions">
+                <Link href="/workout" className="hub-primary-action">
+                  Open workout
+                  <ArrowRight size={18} />
+                </Link>
+                <button type="button">Adjust Session</button>
+              </div>
+            </section>
+          ) : null}
+
+          <section className="hub-card">
+            <header className="section-heading-row">
+              <div>
+                <p className="card-kicker">Readiness</p>
+                <h3>How should today feel?</h3>
+              </div>
+            </header>
+            <div className="readiness-grid">
+              {readinessActions.map((action) => (
+                <button key={action} type="button">
+                  {action}
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section className="hub-card">
+            <header className="section-heading-row">
+              <div>
+                <p className="card-kicker">This week</p>
+                <h3>Plan strip</h3>
+              </div>
+              <CalendarDays size={20} />
+            </header>
+            <div className="week-strip">
+              {dashboard?.week.map((day) => (
+                <div
+                  key={day.date}
+                  className={`week-day ${day.isToday ? "today" : ""} ${day.status}`}
+                >
+                  <span>{day.dayLabel}</span>
+                  <strong>{day.workoutName}</strong>
+                  <em>{day.status.replaceAll("_", " ")}</em>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="hub-grid">
+            <article className="hub-card metric-card">
+              <Flame size={20} />
+              <p>Completed</p>
+              <strong>
+                {dashboard?.progress.workoutsCompletedThisWeek ?? 0}/
+                {dashboard?.progress.totalWorkoutsThisWeek ?? 0}
+              </strong>
+            </article>
+            <article className="hub-card metric-card">
+              <TrendingUp size={20} />
+              <p>Best set</p>
+              <strong>
+                {dashboard?.progress.recentBestSet ?? "Build baseline"}
+              </strong>
+            </article>
+          </section>
+
+          <section className="hub-card">
+            <header className="section-heading-row">
+              <div>
+                <p className="card-kicker">Progress snapshot</p>
+                <h3>Next up</h3>
+              </div>
+              <Link href="/progress">Details</Link>
+            </header>
+            {dashboard?.recommendations.length ? (
+              <div className="recommendation-list compact">
+                {dashboard.recommendations.slice(0, 3).map((item) => (
+                  <article key={item.id}>
+                    <strong>{item.title}</strong>
+                    <p>{item.reason}</p>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="muted-copy">
+                Log a few workouts and Coach AI will show next-weight guidance here.
+              </p>
+            )}
+          </section>
+        </>
+      )}
     </AppShell>
   );
 }

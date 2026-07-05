@@ -3,8 +3,11 @@
 import { getSupabaseBrowserClient } from "./supabase";
 import type {
   ChatMessage,
+  Dashboard,
+  ExerciseLogInput,
   Profile,
   ProfileUpdate,
+  ProgressOverview,
   TodayWorkout,
   WorkoutHistory
 } from "./types";
@@ -57,6 +60,7 @@ async function apiRequest<T>(
 }
 
 export const coachApi = {
+  dashboard: () => apiRequest<Dashboard>("/dashboard"),
   today: () => apiRequest<TodayWorkout | null>("/today"),
   messages: () => apiRequest<ChatMessage[]>("/messages"),
   chat: (message: string) =>
@@ -64,7 +68,18 @@ export const coachApi = {
       method: "POST",
       body: JSON.stringify({ message })
     }),
+  logExercise: (workoutId: string, input: ExerciseLogInput) =>
+    apiRequest<TodayWorkout>(`/workouts/${workoutId}/exercise-logs`, {
+      method: "POST",
+      body: JSON.stringify(input)
+    }),
   workouts: () => apiRequest<WorkoutHistory[]>("/workouts"),
+  progress: (query = "") => {
+    const params = query.trim()
+      ? `?q=${encodeURIComponent(query.trim())}`
+      : "";
+    return apiRequest<ProgressOverview>(`/progress${params}`);
+  },
   profile: () => apiRequest<Profile>("/profile"),
   updateProfile: (profile: ProfileUpdate) =>
     apiRequest<Profile>("/profile", {
