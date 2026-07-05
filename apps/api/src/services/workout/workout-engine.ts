@@ -583,11 +583,7 @@ export class WorkoutEngine {
     const next = mainExercises.find(
       (item) => !fulfilledNames.has(item.exercise.name.toLowerCase())
     );
-    const lastCheckInExercise = await this.getLastCheckInExerciseName(workoutId);
-    const currentExercise =
-      lastCheckInExercise && !fulfilledNames.has(lastCheckInExercise.toLowerCase())
-        ? lastCheckInExercise
-        : next?.exercise.name ?? null;
+    const currentExercise = next?.exercise.name ?? null;
     const currentLog = logRows.find(
       (log) => log.exerciseName.toLowerCase() === currentExercise?.toLowerCase()
     );
