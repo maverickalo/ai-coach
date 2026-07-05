@@ -11,7 +11,8 @@ import {
 import { env } from "../../env.js";
 import type {
   CoachAction,
-  CoachResult
+  CoachResult,
+  ParsedWorkoutLog
 } from "../../types/domain.js";
 import { dateInTimeZone } from "../../utils/dates.js";
 import { COACH_PROMPT_VERSION } from "../coach/coach-prompts.js";
@@ -63,6 +64,28 @@ export function isDailyWorkoutFormatRequest(body: string): boolean {
     /\bif you were sending it to me to start the day\b/.test(normalized) ||
     /\bneed you to send me it\b/.test(normalized)
   );
+}
+
+export function deriveWorkoutStatusFromParsedWorkout(
+  parsedWorkout: ParsedWorkoutLog
+): "in_progress" | "completed" | "partially_completed" {
+  const hasLoggedWork =
+    parsedWorkout.exercises.length > 0 || parsedWorkout.conditioning.length > 0;
+
+  if (parsedWorkout.workoutCompletion === "complete" && hasLoggedWork) {
+    return "completed";
+  }
+
+  if (
+    parsedWorkout.workoutCompletion === "partial" ||
+    parsedWorkout.exercises.some(
+      (entry) => entry.status === "skipped" || entry.status === "partial"
+    )
+  ) {
+    return "partially_completed";
+  }
+
+  return "in_progress";
 }
 
 function isStopWorkoutRequest(body: string): boolean {
@@ -256,16 +279,7 @@ export class ConversationEngine {
         );
 
         if (context.currentWorkout && parsedWorkout) {
-          const status =
-            parsedWorkout.workoutCompletion === "complete"
-              ? "completed"
-              : parsedWorkout.workoutCompletion === "partial" ||
-                  parsedWorkout.exercises.some(
-                    (entry) =>
-                      entry.status === "skipped" || entry.status === "partial"
-                  )
-                ? "partially_completed"
-                : "in_progress";
+          const status = deriveWorkoutStatusFromParsedWorkout(parsedWorkout);
           await this.workoutEngine.updateWorkoutStatus(
             context.currentWorkout.id,
             status
