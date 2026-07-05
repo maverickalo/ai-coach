@@ -40,6 +40,21 @@ const progressQuerySchema = z.object({
   q: z.string().trim().max(200).optional()
 });
 
+const quickCoachSchema = z.object({
+  action: z.enum([
+    "swap",
+    "pain",
+    "explain",
+    "session",
+    "hyrox",
+    "shorten",
+    "freeform"
+  ]),
+  workoutId: z.uuid().nullable(),
+  exerciseId: z.uuid().nullable(),
+  message: z.string().trim().max(1000).nullable()
+});
+
 async function authenticatedUser(
   request: FastifyRequest,
   auth: SupabaseAuthService
@@ -89,6 +104,19 @@ export async function webRoutes(
       parsed.data.message
     );
     return { reply: result.reply };
+  });
+
+  app.post("/quick-coach", async (request, reply) => {
+    const user = await authenticatedUser(request, dependencies.auth);
+    const parsed = quickCoachSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({
+        error: "Invalid quick coach request",
+        details: parsed.error.flatten()
+      });
+    }
+
+    return dependencies.portal.quickCoach(user.id, parsed.data);
   });
 
   app.post("/workouts/:workoutId/exercise-logs", async (request, reply) => {

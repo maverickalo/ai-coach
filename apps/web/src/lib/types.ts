@@ -137,6 +137,40 @@ export interface ProgressOverview {
   recommendations: Recommendation[];
 }
 
+export type QuickCoachAction =
+  | "swap"
+  | "pain"
+  | "explain"
+  | "session"
+  | "hyrox"
+  | "shorten"
+  | "freeform";
+
+export interface QuickCoachRequest {
+  action: QuickCoachAction;
+  workoutId: string | null;
+  exerciseId: string | null;
+  message: string | null;
+}
+
+export interface QuickCoachOption {
+  id: string;
+  title: string;
+  description: string;
+  message: string;
+}
+
+export interface QuickCoachResponse {
+  title: string;
+  reply: string;
+  context: {
+    workoutId: string | null;
+    exerciseId: string | null;
+    label: string;
+  };
+  options: QuickCoachOption[];
+}
+
 export interface ChatMessage {
   id: string;
   role: "coach" | "user";

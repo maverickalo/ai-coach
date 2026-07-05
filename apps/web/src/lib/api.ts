@@ -8,6 +8,8 @@ import type {
   Profile,
   ProfileUpdate,
   ProgressOverview,
+  QuickCoachRequest,
+  QuickCoachResponse,
   TodayWorkout,
   WorkoutHistory
 } from "./types";
@@ -67,6 +69,11 @@ export const coachApi = {
     apiRequest<{ reply: string }>("/chat", {
       method: "POST",
       body: JSON.stringify({ message })
+    }),
+  quickCoach: (request: QuickCoachRequest) =>
+    apiRequest<QuickCoachResponse>("/quick-coach", {
+      method: "POST",
+      body: JSON.stringify(request)
     }),
   logExercise: (workoutId: string, input: ExerciseLogInput) =>
     apiRequest<TodayWorkout>(`/workouts/${workoutId}/exercise-logs`, {

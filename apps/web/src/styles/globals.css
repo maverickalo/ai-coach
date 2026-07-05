@@ -445,6 +445,81 @@ a {
   margin-top: 12px;
 }
 
+.quick-coach-card {
+  display: grid;
+  gap: 11px;
+  margin-bottom: 12px;
+  padding: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-card);
+}
+
+.quick-coach-card h3 {
+  margin: 0;
+  font-size: 1.22rem;
+  line-height: 1.2;
+}
+
+.quick-coach-card p:not(.card-kicker) {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.98rem;
+}
+
+.quick-coach-options {
+  display: grid;
+  gap: 8px;
+}
+
+.quick-coach-options button {
+  display: grid;
+  min-height: 68px;
+  padding: 11px;
+  background: rgb(255 255 255 / 4%);
+  border: 1px solid rgb(255 255 255 / 7%);
+  border-radius: 8px;
+  color: var(--text);
+  text-align: left;
+  gap: 4px;
+}
+
+.quick-coach-options strong {
+  font-size: 0.98rem;
+}
+
+.quick-coach-options span {
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.32;
+}
+
+.quick-coach-freeform {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.quick-coach-freeform input {
+  min-height: 46px;
+  padding: 0 11px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  outline: 0;
+}
+
+.quick-coach-freeform button {
+  min-height: 46px;
+  padding: 0 13px;
+  background: var(--accent);
+  border: 0;
+  border-radius: 8px;
+  color: #041007;
+  font-weight: 850;
+}
+
 .progress-search {
   display: grid;
   align-items: center;
@@ -834,7 +909,8 @@ a {
   gap: 8px;
 }
 
-.resource-row a {
+.resource-row a,
+.resource-row button {
   display: inline-flex;
   min-height: 40px;
   align-items: center;
@@ -848,6 +924,10 @@ a {
   font-size: 0.86rem;
   font-weight: 850;
   text-decoration: none;
+}
+
+.resource-row button {
+  cursor: pointer;
 }
 
 .workout-badge {

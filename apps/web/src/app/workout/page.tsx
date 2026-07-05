@@ -11,6 +11,8 @@ import { coachApi } from "@/lib/api";
 import type {
   ChatMessage as ChatMessageType,
   ExerciseLogInput,
+  QuickCoachAction,
+  QuickCoachResponse,
   TodayWorkout
 } from "@/lib/types";
 
@@ -28,6 +30,9 @@ export default function WorkoutPage() {
   const [loadingMessages, setLoadingMessages] = useState(true);
   const [sending, setSending] = useState(false);
   const [showCoach, setShowCoach] = useState(false);
+  const [quickCoach, setQuickCoach] = useState<QuickCoachResponse | null>(null);
+  const [quickCoachLoading, setQuickCoachLoading] = useState(false);
+  const [quickCoachInput, setQuickCoachInput] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const threadEnd = useRef<HTMLDivElement>(null);
 
@@ -166,6 +171,63 @@ export default function WorkoutPage() {
     [send]
   );
 
+  const openQuickCoach = useCallback(
+    async (input: {
+      action: QuickCoachAction;
+      workoutId: string;
+      exerciseId: string | null;
+      label: string;
+    }) => {
+      setShowCoach(true);
+      setQuickCoachLoading(true);
+      setQuickCoachInput("");
+      try {
+        const result = await coachApi.quickCoach({
+          action: input.action,
+          workoutId: input.workoutId,
+          exerciseId: input.exerciseId,
+          message: null
+        });
+        setQuickCoach(result);
+      } catch (error) {
+        setNotice(
+          error instanceof Error
+            ? error.message
+            : `Unable to open Quick Coach for ${input.label}`
+        );
+      } finally {
+        setQuickCoachLoading(false);
+      }
+    },
+    []
+  );
+
+  const refineQuickCoach = useCallback(async () => {
+    if (!quickCoach || !quickCoachInput.trim()) {
+      return;
+    }
+
+    setQuickCoachLoading(true);
+    try {
+      const result = await coachApi.quickCoach({
+        action: "freeform",
+        workoutId: quickCoach.context.workoutId,
+        exerciseId: quickCoach.context.exerciseId,
+        message: quickCoachInput
+      });
+      setQuickCoach(result);
+      setQuickCoachInput("");
+    } catch (error) {
+      setNotice(
+        error instanceof Error
+          ? error.message
+          : "Unable to refine Quick Coach options"
+      );
+    } finally {
+      setQuickCoachLoading(false);
+    }
+  }, [quickCoach, quickCoachInput]);
+
   return (
     <AppShell
       title="Workout"
@@ -199,10 +261,52 @@ export default function WorkoutPage() {
         disabled={sending}
         onLogExercise={logExercise}
         onCoachPrompt={promptCoach}
+        onQuickCoach={openQuickCoach}
       />
 
       {showCoach ? (
         <section className="coach-panel" aria-label="Quick Coach">
+          {quickCoach || quickCoachLoading ? (
+            <div className="quick-coach-card">
+              {quickCoachLoading ? (
+                <LoadingMessage />
+              ) : quickCoach ? (
+                <>
+                  <p className="card-kicker">Quick Coach</p>
+                  <h3>{quickCoach.title}</h3>
+                  <p>{quickCoach.reply}</p>
+                  <div className="quick-coach-options">
+                    {quickCoach.options.map((option) => (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => void send(option.message)}
+                        disabled={sending}
+                      >
+                        <strong>{option.title}</strong>
+                        <span>{option.description}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="quick-coach-freeform">
+                    <input
+                      value={quickCoachInput}
+                      onChange={(event) => setQuickCoachInput(event.target.value)}
+                      placeholder="Don't like those? Tell Coach what you want..."
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void refineQuickCoach()}
+                      disabled={quickCoachLoading || !quickCoachInput.trim()}
+                    >
+                      Refine
+                    </button>
+                  </div>
+                </>
+              ) : null}
+            </div>
+          ) : null}
+
           <QuickActions onSelect={send} disabled={sending} />
 
           <div className="chat-thread" aria-label="Conversation with Coach">

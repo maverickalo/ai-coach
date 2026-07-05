@@ -9,10 +9,12 @@ import {
   userProfiles,
   users,
   workouts,
+  workoutTemplateExercises,
   workoutTemplates
 } from "../../db/schema.js";
-import type { ParsedExerciseLog } from "../../types/domain.js";
+import type { CurrentWorkout, ParsedExerciseLog } from "../../types/domain.js";
 import type { WorkoutEngine } from "../workout/workout-engine.js";
+import { getWorkoutVariations } from "../workout/workout-variation-library.js";
 
 export interface ProfileUpdate {
   displayName: string;
@@ -32,6 +34,20 @@ export interface WebExerciseLogInput {
   rpe: number | null;
   skippedReason: string | null;
   notes: string | null;
+}
+
+export interface QuickCoachInput {
+  action:
+    | "swap"
+    | "pain"
+    | "explain"
+    | "session"
+    | "hyrox"
+    | "shorten"
+    | "freeform";
+  workoutId: string | null;
+  exerciseId: string | null;
+  message: string | null;
 }
 
 function addDays(dateString: string, days: number) {
@@ -360,6 +376,134 @@ export class WebPortalService {
     };
   }
 
+  async quickCoach(userId: string, input: QuickCoachInput) {
+    const workout = input.workoutId
+      ? await this.workoutEngine.getWorkoutById(input.workoutId)
+      : await this.getToday(userId);
+
+    if (input.workoutId && (!workout || workout.id !== input.workoutId)) {
+      throw new Error("Workout not found");
+    }
+
+    const exercise = input.exerciseId
+      ? await this.findExerciseInWorkout(input.workoutId, input.exerciseId)
+      : null;
+
+    if (input.exerciseId && !exercise) {
+      throw new Error("Exercise not found in workout");
+    }
+
+    const contextLabel = exercise?.name ?? workout?.name ?? "today's workout";
+    const freeformPrefix = input.message
+      ? `You said: "${input.message}". `
+      : "";
+
+    if (input.action === "swap" && exercise) {
+      const substitutions = exercise.commonSubstitutions.slice(0, 3);
+      const options =
+        substitutions.length > 0
+          ? substitutions.map((name) => ({
+              id: name.toLowerCase().replaceAll(/\W+/g, "-"),
+              title: name,
+              description: `Swap ${exercise.name} for ${name} while keeping the rest of the workout unchanged.`,
+              message: `Swap ${exercise.name} for ${name}. Keep today's strength workout as the source of truth and only change this exercise.`
+            }))
+          : this.defaultSwapOptions(exercise.name);
+
+      return {
+        title: `Swap ${exercise.name}`,
+        reply: `${freeformPrefix}Here are three ways to replace ${exercise.name} without rewriting the whole session.`,
+        context: {
+          workoutId: workout?.id ?? input.workoutId,
+          exerciseId: input.exerciseId,
+          label: contextLabel
+        },
+        options
+      };
+    }
+
+    if (input.action === "pain" && exercise) {
+      return {
+        title: `${exercise.name} pain`,
+        reply: `${freeformPrefix}Do not push through pain. Pick the closest path, or type what hurts and how bad it is from 1-10.`,
+        context: {
+          workoutId: workout?.id ?? input.workoutId,
+          exerciseId: input.exerciseId,
+          label: contextLabel
+        },
+        options: [
+          {
+            id: "reduce-range",
+            title: "Reduce range/load",
+            description: "Keep the movement only if it is pain-free with lighter load or shorter range.",
+            message: `${exercise.name} hurts. Ask my pain severity and suggest a reduced-load or reduced-range version if pain-free.`
+          },
+          {
+            id: "safer-substitution",
+            title: "Safer substitution",
+            description: "Swap to a more joint-friendly pattern for today.",
+            message: `${exercise.name} hurts. Ask severity 1-10 and suggest a safer substitution for today's workout.`
+          },
+          {
+            id: "stop-exercise",
+            title: "Stop this exercise",
+            description: "Skip it today and avoid progression until symptoms are clear.",
+            message: `${exercise.name} hurts. Log it as skipped due to pain and help me choose what to do next safely.`
+          }
+        ]
+      };
+    }
+
+    if (input.action === "explain" && exercise) {
+      return {
+        title: `Explain ${exercise.name}`,
+        reply: `${freeformPrefix}${exercise.instructions ?? "Use a controlled setup and stop before form breaks."}`,
+        context: {
+          workoutId: workout?.id ?? input.workoutId,
+          exerciseId: input.exerciseId,
+          label: contextLabel
+        },
+        options: [
+          {
+            id: "form-cues",
+            title: "Form cues",
+            description: "Get concise setup and execution cues.",
+            message: `Explain ${exercise.name} with setup, cues, common mistakes, and how it should feel.`
+          },
+          {
+            id: "demo-links",
+            title: "Demo links",
+            description: "Get video and GIF/search links.",
+            message: `Send me demo links for ${exercise.name}.`
+          },
+          {
+            id: "regression",
+            title: "Make it easier",
+            description: "Find a simpler version for today.",
+            message: `Give me an easier regression for ${exercise.name} for today's workout.`
+          }
+        ]
+      };
+    }
+
+    const sessionOptions = workout ? this.sessionOptions(workout, input.action) : [];
+    return {
+      title:
+        input.action === "hyrox"
+          ? "Add HYROX"
+          : input.action === "shorten"
+            ? "Shorten today"
+            : "Adjust Session",
+      reply: `${freeformPrefix}These options keep the strength plan as the source of truth unless you confirm a session change.`,
+      context: {
+        workoutId: workout?.id ?? input.workoutId,
+        exerciseId: input.exerciseId,
+        label: contextLabel
+      },
+      options: sessionOptions
+    };
+  }
+
   async getProfile(userId: string) {
     const [row] = await this.db
       .select({
@@ -448,6 +592,128 @@ export class WebPortalService {
         )
       )
       .orderBy(desc(workouts.scheduledDate), desc(exerciseLogs.updatedAt));
+  }
+
+  private async findExerciseInWorkout(
+    workoutId: string | null,
+    exerciseId: string
+  ) {
+    if (!workoutId) {
+      const [exercise] = await this.db
+        .select()
+        .from(exercises)
+        .where(eq(exercises.id, exerciseId))
+        .limit(1);
+      return exercise ?? null;
+    }
+
+    const [exercise] = await this.db
+      .select({
+        id: exercises.id,
+        name: exercises.name,
+        category: exercises.category,
+        primaryMuscles: exercises.primaryMuscles,
+        equipment: exercises.equipment,
+        instructions: exercises.instructions,
+        commonSubstitutions: exercises.commonSubstitutions
+      })
+      .from(workouts)
+      .innerJoin(
+        workoutTemplateExercises,
+        eq(workouts.templateId, workoutTemplateExercises.templateId)
+      )
+      .innerJoin(exercises, eq(workoutTemplateExercises.exerciseId, exercises.id))
+      .where(and(eq(workouts.id, workoutId), eq(exercises.id, exerciseId)))
+      .limit(1);
+
+    return exercise ?? null;
+  }
+
+  private defaultSwapOptions(exerciseName: string) {
+    const normalized = exerciseName.toLowerCase();
+    const optionNames =
+      normalized.includes("bench") || normalized.includes("press")
+        ? ["Neutral-Grip Dumbbell Press", "Cable Press", "Push-Up"]
+        : normalized.includes("squat") || normalized.includes("lunge")
+          ? ["Goblet Squat", "Reverse Lunge", "Box Step-Up"]
+          : normalized.includes("deadlift") || normalized.includes("rdl")
+            ? ["Dumbbell RDL", "Hip Thrust", "Cable Pull-Through"]
+            : [
+                "Similar movement, lighter load",
+                "Machine-supported version",
+                "Mobility or core replacement"
+              ];
+
+    return optionNames.map((title) => ({
+      id: title.toLowerCase().replaceAll(/\W+/g, "-"),
+      title,
+      description: `Replace ${exerciseName} with ${title} for today.`,
+      message: `Swap ${exerciseName} for ${title}. Keep the rest of today's workout unchanged.`
+    }));
+  }
+
+  private sessionOptions(
+    workout: CurrentWorkout,
+    action: QuickCoachInput["action"]
+  ) {
+    if (action === "shorten") {
+      return [
+        {
+          id: "top-three",
+          title: "Top 3 lifts only",
+          description: "Keep the highest-priority strength work and cut accessories.",
+          message:
+            "Shorten today's workout to the top 3 priority strength exercises. Keep strength as the source of truth and show what gets cut."
+        },
+        {
+          id: "density",
+          title: "Density format",
+          description: "Keep main lifts, reduce rest, and trim lower-priority volume.",
+          message:
+            "Make today's workout shorter with a density format. Do not rewrite it into cardio."
+        },
+        {
+          id: "minimum-dose",
+          title: "Minimum effective dose",
+          description: "Do enough to keep the training week moving without overreaching.",
+          message:
+            "Give me the minimum effective dose for today's workout because time or energy is low."
+        }
+      ];
+    }
+
+    if (action === "hyrox") {
+      return getWorkoutVariations(workout, 3).map((variation) => ({
+        id: variation.name.toLowerCase().replaceAll(/\W+/g, "-"),
+        title: variation.name,
+        description: variation.prescription,
+        message: `Add this optional HYROX block after today's strength work: ${variation.prescription}. Do not replace the strength workout.`
+      }));
+    }
+
+    return [
+      {
+        id: "shorten",
+        title: "Shorten today",
+        description: "Preserve main lifts and cut lower-priority work.",
+        message:
+          "Shorten today's workout while keeping the strength plan as the source of truth."
+      },
+      {
+        id: "add-hyrox",
+        title: "Add HYROX",
+        description: "Add conditioning without replacing strength.",
+        message:
+          "What would HYROX/cardio look like if we added it to today's workout without replacing strength?"
+      },
+      {
+        id: "work-around-pain",
+        title: "Work around pain",
+        description: "Adjust the session conservatively around pain or soreness.",
+        message:
+          "Help me adjust today's workout around pain or soreness. Ask severity and do not tell me to push through."
+      }
+    ];
   }
 
   private bestSetLabel(

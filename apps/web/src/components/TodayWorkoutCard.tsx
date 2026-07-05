@@ -10,7 +10,11 @@ import {
   Target
 } from "lucide-react";
 import { useMemo, useState } from "react";
-import type { ExerciseLogInput, TodayWorkout } from "@/lib/types";
+import type {
+  ExerciseLogInput,
+  QuickCoachAction,
+  TodayWorkout
+} from "@/lib/types";
 
 interface TodayWorkoutCardProps {
   workout: TodayWorkout | null;
@@ -18,6 +22,12 @@ interface TodayWorkoutCardProps {
   disabled?: boolean;
   onLogExercise?: (input: ExerciseLogInput) => Promise<void>;
   onCoachPrompt?: (message: string) => void;
+  onQuickCoach?: (input: {
+    action: QuickCoachAction;
+    workoutId: string;
+    exerciseId: string | null;
+    label: string;
+  }) => void;
 }
 
 type ExerciseItem = TodayWorkout["exercises"][number];
@@ -65,7 +75,8 @@ export function TodayWorkoutCard({
   loading,
   disabled = false,
   onLogExercise,
-  onCoachPrompt
+  onCoachPrompt,
+  onQuickCoach
 }: TodayWorkoutCardProps) {
   const [drafts, setDrafts] = useState<Record<string, DraftLog>>({});
   const [savingExerciseId, setSavingExerciseId] = useState<string | null>(null);
@@ -325,9 +336,15 @@ export function TodayWorkoutCard({
                   <SkipForward size={17} />
                   Skip
                 </button>
-                <button
-                  type="button"
-                  onClick={() =>
+              <button
+                type="button"
+                onClick={() =>
+                    onQuickCoach?.({
+                      action: "swap",
+                      workoutId: workout.id,
+                      exerciseId: item.exercise.id,
+                      label: item.exercise.name
+                    }) ??
                     onCoachPrompt?.(
                       `I need a substitute for ${item.exercise.name}. Keep today's strength workout as the source of truth.`
                     )
@@ -337,9 +354,15 @@ export function TodayWorkoutCard({
                   <RotateCcw size={17} />
                   Swap
                 </button>
-                <button
-                  type="button"
-                  onClick={() =>
+              <button
+                type="button"
+                onClick={() =>
+                    onQuickCoach?.({
+                      action: "pain",
+                      workoutId: workout.id,
+                      exerciseId: item.exercise.id,
+                      label: item.exercise.name
+                    }) ??
                     onCoachPrompt?.(
                       `${item.exercise.name} hurts today. Ask me severity and suggest a safer option.`
                     )
@@ -352,6 +375,21 @@ export function TodayWorkoutCard({
               </div>
 
               <div className="resource-row">
+                <button
+                  type="button"
+                  onClick={() =>
+                    onQuickCoach?.({
+                      action: "explain",
+                      workoutId: workout.id,
+                      exerciseId: item.exercise.id,
+                      label: item.exercise.name
+                    }) ??
+                    onCoachPrompt?.(`Explain ${item.exercise.name}.`)
+                  }
+                  disabled={disabled}
+                >
+                  Explain
+                </button>
                 <a href={demoUrl} target="_blank" rel="noreferrer">
                   Video
                   <ExternalLink size={14} />
