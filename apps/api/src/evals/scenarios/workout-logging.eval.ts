@@ -117,6 +117,62 @@ export const workoutLoggingScenarios: EvalScenario[] = [
     }
   },
   {
+    name: "next set log uses current workout set instead of weight as set number",
+    run: () => {
+      const parsedWorkout = parseSetOnlyLog(
+        "Next set 135 x8 RPE 6",
+        "Bench Press",
+        3
+      );
+      const exercise = parsedWorkout?.exercises[0];
+      const set = exercise?.setDetails?.[0];
+
+      return {
+        reply:
+          exercise?.sets === 3 &&
+          set?.setNumber === 3 &&
+          set.weight === 135 &&
+          set.reps === 8 &&
+          set.rpe === 6
+            ? "attached next set as set 3"
+            : `failed: set=${exercise?.sets} weight=${set?.weight}`,
+        actions: []
+      };
+    },
+    expect: {
+      replyIncludes: ["attached next set as set 3"],
+      replyExcludes: ["failed", "set=135"]
+    }
+  },
+  {
+    name: "out-of-five set log uses stated set number",
+    run: () => {
+      const parsedWorkout = parseSetOnlyLog(
+        "4 out of 5 logged 145 x 8 RPE 8",
+        "Bench Press",
+        3
+      );
+      const exercise = parsedWorkout?.exercises[0];
+      const set = exercise?.setDetails?.[0];
+
+      return {
+        reply:
+          exercise?.sets === 4 &&
+          set?.setNumber === 4 &&
+          set.weight === 145 &&
+          set.reps === 8 &&
+          set.rpe === 8
+            ? "attached 4 out of 5 as set 4"
+            : `failed: set=${exercise?.sets} weight=${set?.weight}`,
+        actions: []
+      };
+    },
+    expect: {
+      replyIncludes: ["attached 4 out of 5 as set 4"],
+      replyExcludes: ["failed"]
+    }
+  },
+  {
     name: "warmup completion does not complete workout",
     run: () => {
       const status = deriveWorkoutStatusFromParsedWorkout({

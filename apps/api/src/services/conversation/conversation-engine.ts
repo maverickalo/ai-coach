@@ -191,7 +191,8 @@ const ordinalSetNumbers: Record<string, number> = {
 
 export function parseSetOnlyLog(
   body: string,
-  exerciseName: string | null
+  exerciseName: string | null,
+  fallbackSetNumber: number | null = null
 ): ParsedWorkoutLog | null {
   if (!exerciseName) {
     return null;
@@ -199,11 +200,13 @@ export function parseSetOnlyLog(
 
   const normalized = body.trim().toLowerCase();
   const setNumberMatch = normalized.match(
-    /\b(first|1st|second|2nd|third|3rd|fourth|4th|fifth|5th|sixth|6th)\s+set\b|\bset\s*(\d+)\b/
+    /\b(first|1st|second|2nd|third|3rd|fourth|4th|fifth|5th|sixth|6th)\s+set\b|\bset\s*(\d+)(?:\s*(?:of|\/)\s*\d+)?\b(?!\s*x)|\b(\d+)\s*(?:out of|\/)\s*\d+\b/
   );
   const setNumber =
     (setNumberMatch?.[1] ? ordinalSetNumbers[setNumberMatch[1]] : undefined) ??
-    (setNumberMatch?.[2] ? Number(setNumberMatch[2]) : null);
+    (setNumberMatch?.[2] ? Number(setNumberMatch[2]) : undefined) ??
+    (setNumberMatch?.[3] ? Number(setNumberMatch[3]) : undefined) ??
+    fallbackSetNumber;
 
   if (!setNumber) {
     return null;
@@ -358,22 +361,31 @@ export class ConversationEngine {
           context.currentWorkout
         );
         if (setOnlyLog && context.currentWorkout) {
-          result = await this.coachEngine.respond({
-            message: input.body,
-            intent: "log_workout",
-            context,
-            parsedWorkout: setOnlyLog
-          });
-
-          await this.applyActions(
-            input.userId,
-            context.currentWorkout?.id ?? null,
-            result.actions
-          );
+          const exercise = setOnlyLog.exercises[0];
+          if (exercise) {
+            await this.workoutEngine.logExercise(
+              input.userId,
+              context.currentWorkout.id,
+              exercise
+            );
+          }
           await this.workoutEngine.updateWorkoutStatus(
             context.currentWorkout.id,
             "in_progress"
           );
+          const loggedText = exercise
+            ? `Logged ${exercise.exerciseName} set ${exercise.sets}: ${exercise.weight} x ${exercise.reps}${exercise.rpe ? ` @ RPE ${exercise.rpe}` : ""}.`
+            : "Logged that set.";
+          result = {
+            intent: "log_workout",
+            actions: [],
+            reply: [
+              loggedText,
+              await this.workoutEngine.buildWorkoutStatusUpdate(
+                context.currentWorkout.id
+              )
+            ].join("\n\n")
+          };
         } else {
         const intent = await classifyIntent(input.body, this.openai);
         const shouldParse =
@@ -662,7 +674,8 @@ export class ConversationEngine {
     const state = await this.workoutEngine.getWorkoutState(currentWorkout.id);
     return parseSetOnlyLog(
       body,
-      state?.currentExercise ?? lastLoggedExercise ?? null
+      state?.currentExercise ?? lastLoggedExercise ?? null,
+      state?.currentSet ?? null
     );
   }
 
