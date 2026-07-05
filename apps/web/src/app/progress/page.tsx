@@ -102,7 +102,11 @@ export default function ProgressPage() {
   const trendName = progress?.trend[0]?.exerciseName ?? "Exercise trend";
 
   return (
-    <AppShell title="Progress" subtitle="Evidence and planning">
+    <AppShell
+      title="Progress"
+      subtitle="Evidence and planning"
+      className="progress-shell"
+    >
       <form className="progress-search" onSubmit={submit}>
         <Search size={19} />
         <input
@@ -119,7 +123,7 @@ export default function ProgressPage() {
         <p className="page-message error">{error}</p>
       ) : progress ? (
         <>
-          <section className="hub-card">
+          <section className="hub-card progress-chart-card">
             <header className="section-heading-row">
               <div>
                 <p className="card-kicker">Chart</p>
@@ -129,7 +133,7 @@ export default function ProgressPage() {
             <TrendChart points={progress.trend} />
           </section>
 
-          <section className="hub-card">
+          <section className="hub-card progress-recommendations-card">
             <header className="section-heading-row">
               <div>
                 <p className="card-kicker">Recommendations</p>
@@ -150,7 +154,7 @@ export default function ProgressPage() {
             </div>
           </section>
 
-          <section className="hub-card">
+          <section className="hub-card progress-logbook-card">
             <header className="section-heading-row">
               <div>
                 <p className="card-kicker">Logbook</p>

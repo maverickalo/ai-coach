@@ -11,7 +11,7 @@
   --accent-blue: #3b82f6;
   --danger: #ef4444;
   --success: #22c55e;
-  --shell-width: 680px;
+  --shell-width: 1440px;
   --shadow-card: 0 12px 34px rgb(0 0 0 / 32%);
   --focus-ring: 0 0 0 3px rgb(57 255 136 / 18%);
 }
@@ -28,7 +28,9 @@ html {
 body {
   min-height: 100%;
   margin: 0;
-  background: var(--bg);
+  background:
+    linear-gradient(180deg, rgb(12 14 18 / 92%), var(--bg) 240px),
+    var(--bg);
   color: var(--text);
   font-family:
     Nunito, Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
@@ -82,7 +84,7 @@ a {
   width: min(100%, var(--shell-width));
   min-height: 100dvh;
   margin: 0 auto;
-  background: var(--bg);
+  background: transparent;
   border-inline: 1px solid transparent;
 }
 
@@ -96,7 +98,7 @@ a {
   justify-content: space-between;
   padding:
     calc(11px + env(safe-area-inset-top))
-    18px
+    24px
     11px;
   background: color-mix(in srgb, var(--bg) 94%, transparent);
   border-bottom: 1px solid var(--border);
@@ -133,7 +135,7 @@ a {
 
 .app-main {
   min-height: calc(100dvh - 76px);
-  padding: 14px 14px calc(94px + env(safe-area-inset-bottom));
+  padding: 24px 24px calc(104px + env(safe-area-inset-bottom));
 }
 
 .coach-shell .app-main {
@@ -203,7 +205,7 @@ a {
 .hub-hero {
   display: grid;
   align-items: start;
-  padding: 17px;
+  padding: 22px;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 12px;
 }
@@ -211,7 +213,7 @@ a {
 .hub-hero h2,
 .dashboard-panel h2 {
   margin: 0;
-  font-size: 1.7rem;
+  font-size: 2rem;
   line-height: 1.12;
 }
 
@@ -236,7 +238,7 @@ a {
   display: grid;
   gap: 13px;
   margin-top: 12px;
-  padding: 15px;
+  padding: 18px;
 }
 
 .hub-meta-row,
@@ -1483,6 +1485,224 @@ a {
   }
   to {
     opacity: 1;
+  }
+}
+
+@media (min-width: 960px) {
+  :root {
+    --sidebar-width: 244px;
+  }
+
+  .app-shell {
+    width: 100%;
+    max-width: none;
+  }
+
+  .app-header {
+    position: sticky;
+    top: 0;
+    min-height: 92px;
+    margin-left: var(--sidebar-width);
+    padding: 24px 44px 18px;
+    background: color-mix(in srgb, var(--bg) 90%, transparent);
+  }
+
+  .app-header h1 {
+    font-size: 2.15rem;
+  }
+
+  .app-header p {
+    font-size: 0.98rem;
+  }
+
+  .coach-avatar {
+    width: 46px;
+    height: 46px;
+    flex-basis: 46px;
+  }
+
+  .bottom-nav {
+    position: fixed;
+    top: 0;
+    right: auto;
+    bottom: 0;
+    left: 0;
+    width: var(--sidebar-width);
+    background: color-mix(in srgb, var(--surface) 96%, transparent);
+    border-top: 0;
+    border-right: 1px solid var(--border);
+    border-bottom: 0;
+  }
+
+  .bottom-nav-inner {
+    display: flex;
+    width: 100%;
+    min-height: 100dvh;
+    padding: 28px 16px;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .bottom-nav a {
+    min-height: 52px;
+    justify-content: flex-start;
+    gap: 12px;
+    padding: 0 14px;
+    font-size: 0.96rem;
+    flex-direction: row;
+  }
+
+  .bottom-nav a.active {
+    background: rgb(57 255 136 / 10%);
+    border: 1px solid rgb(57 255 136 / 22%);
+  }
+
+  .app-main,
+  .coach-shell .app-main {
+    width: calc(100% - var(--sidebar-width));
+    max-width: 1320px;
+    margin-left: var(--sidebar-width);
+    margin-right: auto;
+    padding: 32px 44px 56px;
+  }
+
+  .dashboard-shell .app-main {
+    display: grid;
+    align-items: start;
+    grid-template-columns: minmax(0, 1.45fr) minmax(360px, 0.75fr);
+    gap: 20px;
+  }
+
+  .dashboard-shell .hub-hero,
+  .dashboard-shell .today-summary,
+  .dashboard-shell .workout-cockpit,
+  .dashboard-shell .dashboard-panel,
+  .dashboard-shell .dashboard-notice {
+    grid-column: 1;
+  }
+
+  .dashboard-shell .hub-card:nth-of-type(3),
+  .dashboard-shell .hub-card:nth-of-type(4),
+  .dashboard-shell .hub-grid,
+  .dashboard-shell .hub-card:last-child,
+  .dashboard-shell .coach-panel {
+    grid-column: 2;
+  }
+
+  .hub-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hub-hero,
+  .hub-card,
+  .dashboard-panel,
+  .dashboard-notice,
+  .workout-card,
+  .exercise-cockpit-card,
+  .quick-coach-card {
+    border-color: rgb(255 255 255 / 8%);
+  }
+
+  .hub-hero {
+    min-height: 170px;
+    padding: 28px;
+  }
+
+  .hub-card,
+  .workout-card,
+  .exercise-cockpit-card,
+  .quick-coach-card {
+    padding: 20px;
+  }
+
+  .hub-exercise-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .week-strip {
+    grid-template-columns: 1fr;
+    overflow: visible;
+  }
+
+  .week-day {
+    min-height: 72px;
+  }
+
+  .exercise-cockpit-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .workout-hero {
+    grid-column: 1 / -1;
+  }
+
+  .coach-panel {
+    position: sticky;
+    top: 74px;
+  }
+
+  .chat-composer {
+    position: static;
+    margin-top: 10px;
+  }
+
+  .chat-thread {
+    max-height: 44vh;
+    overflow-y: auto;
+  }
+
+  .progress-shell .progress-search,
+  .progress-shell .progress-search + .settings-skeleton {
+    grid-column: 1 / -1;
+  }
+
+  .progress-shell .hub-card {
+    margin-top: 0;
+  }
+
+  .progress-shell .app-main {
+    display: grid;
+    align-items: start;
+    grid-template-columns: minmax(0, 0.9fr) minmax(460px, 1.1fr);
+    gap: 20px;
+  }
+
+  .progress-shell .progress-chart-card {
+    grid-column: 1;
+  }
+
+  .progress-shell .progress-logbook-card {
+    grid-column: 2;
+    grid-row: 2 / span 2;
+  }
+
+  .progress-shell .progress-recommendations-card {
+    grid-column: 1;
+  }
+}
+
+@media (min-width: 1280px) {
+  .app-main {
+    padding-inline: 56px;
+  }
+
+  .hub-hero h2,
+  .dashboard-panel h2 {
+    font-size: 2.25rem;
+  }
+
+  .exercise-cockpit-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 959px) {
+  :root {
+    --shell-width: 680px;
+  }
+
+  .app-main {
+    padding-inline: 14px;
   }
 }
 
