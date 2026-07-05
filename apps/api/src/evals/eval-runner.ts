@@ -5,6 +5,7 @@ import { checkInFlowScenarios } from "./scenarios/check-in-flow.eval.js";
 import { endWorkoutSummaryScenarios } from "./scenarios/end-workout-summary.eval.js";
 import { painSafetyScenarios } from "./scenarios/pain-safety.eval.js";
 import { progressionScenarios } from "./scenarios/progression.eval.js";
+import { scopedWorkoutModificationScenarios } from "./scenarios/scoped-workout-modification.eval.js";
 import { skipExerciseScenarios } from "./scenarios/skip-exercise.eval.js";
 import { strengthSourceOfTruthScenarios } from "./scenarios/strength-source-of-truth.eval.js";
 import { workoutLoggingScenarios } from "./scenarios/workout-logging.eval.js";
@@ -16,6 +17,7 @@ import type { EvalScenario } from "./types.js";
 const scenarios: EvalScenario[] = [
   ...strengthSourceOfTruthScenarios,
   ...cardioAddonScenarios,
+  ...scopedWorkoutModificationScenarios,
   ...skipExerciseScenarios,
   ...workoutLoggingScenarios,
   ...painSafetyScenarios,

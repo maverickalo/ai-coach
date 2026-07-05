@@ -165,3 +165,138 @@ export function buildWorkoutVariationMessage(workout: CurrentWorkout): string {
     )
   ].join("\n\n");
 }
+
+function hasAny(input: string, patterns: RegExp[]): boolean {
+  return patterns.some((pattern) => pattern.test(input));
+}
+
+function targetMuscles(workout: CurrentWorkout): string[] {
+  const muscles = new Set<string>();
+  for (const item of workout.exercises) {
+    for (const muscle of item.exercise.primaryMuscles ?? []) {
+      muscles.add(muscle);
+    }
+  }
+
+  if (muscles.size > 0) {
+    return Array.from(muscles);
+  }
+
+  const focus = workout.focus?.toLowerCase() ?? "";
+  if (focus.includes("push")) {
+    return ["chest", "shoulders", "triceps"];
+  }
+  return ["the target muscles for today"];
+}
+
+function excludedExercises(body: string): string[] {
+  const exclusions = [
+    ["Overhead Rope Extension", /\boverhead rope extension\b/i],
+    ["Triceps Pushdown", /\b(triceps?|cable)\s+pushdowns?\b/i],
+    ["Close-Grip Bench Press", /\bclose[- ]grip bench\b/i],
+    ["Weighted Dips", /\bweighted dips?\b/i],
+    ["Cable Skull Crushers", /\bcable skull crushers?\b/i],
+    ["Dumbbell Floor Press", /\bdumbbell floor press\b/i]
+  ];
+
+  return exclusions
+    .filter(([, pattern]) => pattern instanceof RegExp && pattern.test(body))
+    .map(([name]) => name as string);
+}
+
+function wantsNoHyrox(body: string): boolean {
+  return /\bno\s+hyrox\b|\bnot\s+hyrox\b|\bjust\s+strength\b|\bstrength\s+only\b/i.test(
+    body
+  );
+}
+
+function wantsLongSession(body: string): boolean {
+  return /\b2\s*hour\b|\btwo\s*hour\b|\blong\b|\blonger\b/i.test(body);
+}
+
+export function isScopedWorkoutModificationRequest(body: string): boolean {
+  const normalized = body.toLowerCase();
+  const asksForModification = hasAny(normalized, [
+    /\bswap\b/,
+    /\breplace\b/,
+    /\bdon'?t want\b/,
+    /\bfind something else\b/,
+    /\binstead of\b/,
+    /\boptions instead of\b/,
+    /\btighten this into\b/
+  ]);
+  const asksForTargetedStrength = hasAny(normalized, [
+    /\bmore strength\b/,
+    /\bjust strength\b/,
+    /\bstrength only\b/,
+    /\baround the muscles\b/,
+    /\btargeting?\b/,
+    /\b2\s*hour\b/,
+    /\btwo\s*hour\b/
+  ]);
+
+  return asksForModification && asksForTargetedStrength;
+}
+
+export function buildScopedWorkoutModificationMessage(
+  body: string,
+  workout: CurrentWorkout
+): string {
+  const exclusions = excludedExercises(body);
+  const noHyrox = wantsNoHyrox(body);
+  const longSession = wantsLongSession(body);
+  const muscles = targetMuscles(workout);
+  const mainExercises = workout.exercises
+    .filter((item) => item.notes !== "Warm-up")
+    .map((item) => item.exercise.name);
+  const availableOptions = [
+    "Close-Grip Bench Press",
+    "Paused Bench Press",
+    "Incline Dumbbell Close-Grip Press",
+    "Dumbbell Skull Crusher",
+    "Tate Press",
+    "Landmine Press",
+    "Neutral-Grip Dumbbell Press",
+    "Cable Cross-Body Triceps Extension",
+    "Cable Overhead Triceps Extension with handle",
+    "Push-Up close-grip finisher"
+  ].filter((option) => !exclusions.includes(option));
+
+  const recommendedPair = availableOptions.slice(0, 2);
+  const volume = longSession
+    ? [
+        "*2-hour strength expansion*",
+        "1. Add 1-2 heavier back-off sets after Bench Press.",
+        "2. Add one chest/triceps strength slot and one shoulder/triceps strength slot.",
+        "3. Keep rest longer on heavy sets, then use controlled accessory volume."
+      ].join("\n")
+    : [
+        "*Standard strength expansion*",
+        "Add one replacement lift and one accessory slot. Keep the original Push structure intact."
+      ].join("\n");
+
+  return [
+    `Got it — scoped edit for *${workout.name}*.`,
+    noHyrox ? "*No HYROX/cardio.* Strength only." : "*Strength stays primary.*",
+    `*Targets today:* ${muscles.join(", ")}.`,
+    `*Keep as the base:* ${mainExercises.join(", ")}.`,
+    exclusions.length
+      ? `*Remove / avoid:* ${exclusions.join(", ")}.`
+      : null,
+    volume,
+    "*Replacement options from your equipment*",
+    "Heavy chest/triceps:",
+    `• ${availableOptions[0] ?? "Close-Grip Bench Press"} — 4x6-8`,
+    `• ${availableOptions[1] ?? "Paused Bench Press"} — 4x6-8`,
+    "Shoulder-friendly press:",
+    `• ${availableOptions[5] ?? "Landmine Press"} — 4x8-10/side`,
+    `• ${availableOptions[6] ?? "Neutral-Grip Dumbbell Press"} — 4x8-10`,
+    "Triceps accessory:",
+    `• ${availableOptions[3] ?? "Dumbbell Skull Crusher"} — 4x10-12`,
+    `• ${availableOptions[4] ?? "Tate Press"} — 3-4x10-12`,
+    `*My pick:* ${recommendedPair.join(" + ")}.`,
+    "Reply with the pair you want and I’ll treat those as today’s replacements."
+  ]
+    .filter(Boolean)
+    .join("\n");
+}

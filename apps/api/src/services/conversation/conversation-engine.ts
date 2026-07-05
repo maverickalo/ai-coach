@@ -20,7 +20,11 @@ import type { CoachEngine } from "../coach/coach-engine.js";
 import type { MemoryEngine } from "../memory/memory-engine.js";
 import type { OpenAiClient } from "../openai/openai.client.js";
 import type { WorkoutEngine } from "../workout/workout-engine.js";
-import { buildWorkoutVariationMessage } from "../workout/workout-variation-library.js";
+import {
+  buildScopedWorkoutModificationMessage,
+  buildWorkoutVariationMessage,
+  isScopedWorkoutModificationRequest
+} from "../workout/workout-variation-library.js";
 import { parseWorkoutLog } from "../workout/workout-log-parser.js";
 import {
   classifyDeterministicIntent,
@@ -169,6 +173,8 @@ export class ConversationEngine {
         result = await this.handleWorkoutStarted(input.userId, context);
       } else if (isCurrentExerciseSkipRequest(input.body)) {
         result = await this.handleCurrentExerciseSkipped(input.userId, context);
+      } else if (isScopedWorkoutModificationRequest(input.body)) {
+        result = this.handleScopedWorkoutModification(input.body, context);
       } else if (isWorkoutMediaRequest(input.body)) {
         result = this.handleWorkoutMediaRequest(context);
       } else if (isWorkoutVariationRequest(input.body)) {
@@ -551,6 +557,29 @@ export class ConversationEngine {
       intent: "schedule_change",
       actions: [],
       reply: buildWorkoutVariationMessage(context.currentWorkout)
+    };
+  }
+
+  private handleScopedWorkoutModification(
+    body: string,
+    context: Awaited<ReturnType<CoachContextBuilder["build"]>>
+  ): CoachResult {
+    if (!context.currentWorkout) {
+      return {
+        intent: "schedule_change",
+        actions: [],
+        reply:
+          "I do not see today's workout yet. Ask for today's workout first, then tell me which exercise you want to swap."
+      };
+    }
+
+    return {
+      intent: "schedule_change",
+      actions: [],
+      reply: buildScopedWorkoutModificationMessage(
+        body,
+        context.currentWorkout
+      )
     };
   }
 
