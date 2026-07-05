@@ -6,8 +6,10 @@ import {
   Activity,
   ArrowRight,
   CalendarDays,
+  CheckCircle2,
   Dumbbell,
   Flame,
+  Gauge,
   Timer,
   TrendingUp
 } from "lucide-react";
@@ -16,12 +18,12 @@ import { coachApi } from "@/lib/api";
 import type { Dashboard } from "@/lib/types";
 
 const readinessActions = [
-  { label: "Short", href: "/workout?quick=shorten" },
-  { label: "Normal", href: "/workout" },
-  { label: "Longer", href: "/workout?quick=session" },
-  { label: "More HYROX", href: "/workout?quick=hyrox" },
-  { label: "Low energy", href: "/workout?quick=shorten" },
-  { label: "Sore", href: "/workout?quick=session" }
+  { label: "Short", detail: "Trim volume", href: "/workout?quick=shorten" },
+  { label: "Normal", detail: "Run plan", href: "/workout" },
+  { label: "Longer", detail: "Add work", href: "/workout?quick=session" },
+  { label: "More HYROX", detail: "Conditioning", href: "/workout?quick=hyrox" },
+  { label: "Low energy", detail: "Minimum dose", href: "/workout?quick=shorten" },
+  { label: "Sore", detail: "Adjust safely", href: "/workout?quick=session" }
 ];
 
 export default function CoachPage() {
@@ -75,13 +77,27 @@ export default function CoachPage() {
       ) : (
         <>
           <section className="hub-hero">
-            <div>
+            <div className="hub-hero-copy">
               <p className="card-kicker">Today&apos;s workout</p>
               <h2>{today?.name ?? "No workout scheduled"}</h2>
               <p>
                 {today?.focus ??
                   "Recovery day. Keep movement easy unless Coach updates the plan."}
               </p>
+              <div className="hero-stat-row">
+                <span>
+                  <Timer size={16} />
+                  {today?.estimatedMinutes ?? 0} min
+                </span>
+                <span>
+                  <CheckCircle2 size={16} />
+                  {dashboard?.progress.exercisesLoggedThisWeek ?? 0} logs this week
+                </span>
+                <span>
+                  <Gauge size={16} />
+                  {dashboard?.progress.nextWeightHighlight ?? "Baseline mode"}
+                </span>
+              </div>
             </div>
             <span className="hub-hero-icon" aria-hidden="true">
               <Dumbbell size={24} />
@@ -90,16 +106,13 @@ export default function CoachPage() {
 
           {today ? (
             <section className="hub-card today-summary">
-              <div className="hub-meta-row">
-                <span>
-                  <Timer size={17} />
-                  {today.estimatedMinutes ?? 60} min
-                </span>
-                <span>
-                  <Activity size={17} />
-                  Strength source of truth
-                </span>
-              </div>
+              <header className="section-heading-row">
+                <div>
+                  <p className="card-kicker">Main work</p>
+                  <h3>Strength source of truth</h3>
+                </div>
+                <Activity size={20} />
+              </header>
 
               <div className="hub-exercise-list">
                 {mainExercises.map((item) => (
@@ -136,7 +149,8 @@ export default function CoachPage() {
             <div className="readiness-grid">
               {readinessActions.map((action) => (
                 <Link key={action.label} href={action.href}>
-                  {action.label}
+                  <strong>{action.label}</strong>
+                  <span>{action.detail}</span>
                 </Link>
               ))}
             </div>

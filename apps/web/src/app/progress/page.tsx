@@ -35,6 +35,10 @@ function TrendChart({ points }: { points: ExerciseTrendPoint[] }) {
       .join(" ");
   }, [chartPoints]);
 
+  const areaPath = path
+    ? `${path} L ${chartPoints.length === 1 ? 160 : 300} 110 L 20 110 Z`
+    : "";
+
   if (chartPoints.length === 0) {
     return (
       <div className="empty-chart">
@@ -46,8 +50,15 @@ function TrendChart({ points }: { points: ExerciseTrendPoint[] }) {
 
   return (
     <svg className="progress-chart" viewBox="0 0 320 130" role="img">
+      <defs>
+        <linearGradient id="progress-area" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stopColor="rgb(57 255 136)" stopOpacity="0.24" />
+          <stop offset="100%" stopColor="rgb(57 255 136)" stopOpacity="0.02" />
+        </linearGradient>
+      </defs>
       <path d="M20 110 H300" />
       <path d="M20 30 V110" />
+      {areaPath ? <path className="chart-area" d={areaPath} /> : null}
       <path className="chart-line" d={path} />
       {chartPoints.map((point, index) => {
         const max = Math.max(...chartPoints.map((item) => item.value));
@@ -100,6 +111,7 @@ export default function ProgressPage() {
   }
 
   const trendName = progress?.trend[0]?.exerciseName ?? "Exercise trend";
+  const latestTrend = progress?.trend.at(-1);
 
   return (
     <AppShell
@@ -129,6 +141,12 @@ export default function ProgressPage() {
                 <p className="card-kicker">Chart</p>
                 <h3>{trendName}</h3>
               </div>
+              {latestTrend ? (
+                <div className="chart-summary">
+                  <strong>{latestTrend.weight ?? latestTrend.volume ?? "-"} </strong>
+                  <span>{latestTrend.weight ? "lb latest" : "latest"}</span>
+                </div>
+              ) : null}
             </header>
             <TrendChart points={progress.trend} />
           </section>
