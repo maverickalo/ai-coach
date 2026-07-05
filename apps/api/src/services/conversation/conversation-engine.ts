@@ -110,6 +110,18 @@ function isNextExerciseRequest(body: string): boolean {
   );
 }
 
+function isWorkoutStatusRequest(body: string): boolean {
+  const normalized = body.trim().toLowerCase();
+  return (
+    /^(status|workout status|where am i|where are we|where are we at|where are we at with things|where are we at\?)\s*[.!?]*$/.test(
+      normalized
+    ) ||
+    /\b(status update|where we'?re at|where i'?m at|what set am i on|what set are we on|what's next|whats next)\b/.test(
+      normalized
+    )
+  );
+}
+
 function isExerciseDemoRequest(body: string): boolean {
   return /\b(gif|demo|video|show me|how do i|how to)\b/i.test(body);
 }
@@ -322,6 +334,8 @@ export class ConversationEngine {
         result = await this.handleWorkoutGoBack(input.userId, context);
       } else if (isNextExerciseRequest(input.body)) {
         result = await this.handleNextExercise(input.userId, context);
+      } else if (isWorkoutStatusRequest(input.body)) {
+        result = await this.handleWorkoutStatusRequest(context);
       } else if (isCurrentExerciseSkipRequest(input.body)) {
         result = await this.handleCurrentExerciseSkipped(input.userId, context);
       } else if (isDailyWorkoutFormatRequest(input.body)) {
@@ -690,6 +704,26 @@ export class ConversationEngine {
       reply: nextState?.currentExercise
         ? `Moving on. Next up: ${nextState.currentExercise}. Send the set or lift when you finish it.`
         : "Moving on. I do not see another planned lift after that."
+    };
+  }
+
+  private async handleWorkoutStatusRequest(
+    context: Awaited<ReturnType<CoachContextBuilder["build"]>>
+  ): Promise<CoachResult> {
+    if (!context.currentWorkout) {
+      return {
+        intent: "general_chat",
+        actions: [],
+        reply: "I do not see today's workout yet. Ask me for today's workout first."
+      };
+    }
+
+    return {
+      intent: "general_chat",
+      actions: [],
+      reply: await this.workoutEngine.buildWorkoutStatusUpdate(
+        context.currentWorkout.id
+      )
     };
   }
 

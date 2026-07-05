@@ -1,3 +1,4 @@
+import { buildNextSetRecommendation } from "../../services/workout/workout-engine.js";
 import type { WorkoutState } from "../../types/domain.js";
 import type { EvalScenario } from "../types.js";
 
@@ -35,6 +36,43 @@ export const workoutStateScenarios: EvalScenario[] = [
         "optional=rower 500m",
         "next=Bench Press"
       ]
+    }
+  },
+  {
+    name: "status advice holds weight after RPE 8",
+    run: () => ({
+      reply: buildNextSetRecommendation({
+        exerciseName: "Bench Press",
+        prescribedSets: 5,
+        currentSet: 3,
+        loggedSets: [
+          { setNumber: 1, weight: "135", reps: 8, rpe: "8" },
+          { setNumber: 2, weight: "135", reps: 8, rpe: "8" }
+        ]
+      }),
+      actions: []
+    }),
+    expect: {
+      replyIncludes: ["set 3 of 5", "stay at 135", "RPE 8"],
+      replyExcludes: ["add", "jump"]
+    }
+  },
+  {
+    name: "status advice reduces weight after RPE 9",
+    run: () => ({
+      reply: buildNextSetRecommendation({
+        exerciseName: "Bench Press",
+        prescribedSets: 5,
+        currentSet: 5,
+        loggedSets: [
+          { setNumber: 4, weight: "135", reps: 8, rpe: "9" }
+        ]
+      }),
+      actions: []
+    }),
+    expect: {
+      replyIncludes: ["set 5 of 5", "take weight off", "around"],
+      replyExcludes: ["add", "jump"]
     }
   }
 ];

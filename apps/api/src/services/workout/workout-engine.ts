@@ -22,6 +22,50 @@ import { dateInTimeZone, dayOfWeekInTimeZone } from "../../utils/dates.js";
 import { recommendConditioning } from "./conditioning-engine.js";
 import { exerciseResource } from "./exercise-resources.js";
 
+export interface LoggedSetSummary {
+  setNumber: number;
+  reps: number | null;
+  weight: string | null;
+  rpe: string | null;
+}
+
+export function buildNextSetRecommendation(input: {
+  exerciseName: string;
+  prescribedSets: number | null;
+  currentSet: number | null;
+  loggedSets: LoggedSetSummary[];
+}): string {
+  const lastSet = input.loggedSets.at(-1);
+  if (!lastSet) {
+    return `Start ${input.exerciseName} controlled. Use the first work set to find a clean RPE 6-7 before deciding whether to add weight.`;
+  }
+
+  const rpe = lastSet.rpe ? Number(lastSet.rpe) : null;
+  const weight = lastSet.weight ? Number(lastSet.weight) : null;
+  const nextSetText = input.currentSet
+    ? `set ${input.currentSet}${input.prescribedSets ? ` of ${input.prescribedSets}` : ""}`
+    : "the next set";
+
+  if (rpe !== null && rpe <= 6 && weight !== null) {
+    return `For ${nextSetText}, add a small jump if bar speed/form stayed clean. Try ${weight + 5} lb, then reassess RPE.`;
+  }
+
+  if (rpe !== null && rpe <= 7 && weight !== null) {
+    return `For ${nextSetText}, you can either stay at ${weight} lb or make a small +5 lb jump if the last set moved cleanly. Keep the next set around RPE 7-8.`;
+  }
+
+  if (rpe !== null && rpe <= 8 && weight !== null) {
+    return `For ${nextSetText}, stay at ${weight} lb. RPE 8 is productive, so the goal is matching reps without form slipping.`;
+  }
+
+  if (rpe !== null && rpe >= 9 && weight !== null) {
+    const reduced = Math.max(0, Math.round((weight * 0.95) / 5) * 5);
+    return `For ${nextSetText}, take weight off. Try around ${reduced} lb and rest longer; RPE 9+ is too hot to keep forcing across the remaining sets.`;
+  }
+
+  return `For ${nextSetText}, repeat the last weight if form felt clean. If the set felt grindy, reduce slightly and protect reps.`;
+}
+
 export class WorkoutEngine {
   constructor(private readonly db: Database) {}
 
@@ -577,6 +621,115 @@ export class WorkoutEngine {
       ),
       nextExercise: next?.exercise.name ?? null
     };
+  }
+
+  async buildWorkoutStatusUpdate(workoutId: string): Promise<string> {
+    const workout = await this.getWorkoutById(workoutId);
+    const state = await this.getWorkoutState(workoutId);
+    if (!workout || !state) {
+      return "I couldn't reload the current workout state. Send the last exercise you logged and I’ll pick it back up.";
+    }
+
+    if (!state.currentExercise) {
+      return `✅ *Status — ${state.workoutName}*\nAll planned lifts look complete or advanced. Say \`done\` when you want the workout summary.`;
+    }
+
+    const prescribed = workout.exercises.find(
+      (item) => item.exercise.name === state.currentExercise
+    );
+    const [log] = await this.db
+      .select({
+        id: exerciseLogs.id,
+        setsCompleted: exerciseLogs.setsCompleted,
+        repsCompleted: exerciseLogs.repsCompleted,
+        weight: exerciseLogs.weight,
+        rpe: exerciseLogs.rpe,
+        notes: exerciseLogs.notes
+      })
+      .from(exerciseLogs)
+      .innerJoin(exercises, eq(exerciseLogs.exerciseId, exercises.id))
+      .where(
+        and(
+          eq(exerciseLogs.workoutId, workoutId),
+          ilike(exercises.name, state.currentExercise)
+        )
+      )
+      .limit(1);
+
+    const setRows = log
+      ? await this.db
+          .select({
+            setNumber: exerciseSets.setNumber,
+            reps: exerciseSets.reps,
+            weight: exerciseSets.weight,
+            rpe: exerciseSets.rpe
+          })
+          .from(exerciseSets)
+          .where(eq(exerciseSets.exerciseLogId, log.id))
+          .orderBy(asc(exerciseSets.setNumber))
+      : [];
+    const loggedSets: LoggedSetSummary[] =
+      setRows.length > 0
+        ? setRows.map((set) => ({
+            setNumber: set.setNumber,
+            reps: set.reps,
+            weight: set.weight,
+            rpe: set.rpe
+          }))
+        : log?.weight || log?.repsCompleted || log?.rpe
+          ? [
+              {
+                setNumber: log.setsCompleted ?? 1,
+                reps:
+                  log.repsCompleted && /^\d+$/.test(log.repsCompleted)
+                    ? Number(log.repsCompleted)
+                    : null,
+                weight: log.weight,
+                rpe: log.rpe
+              }
+            ]
+          : [];
+    const currentSet =
+      state.currentSet ??
+      (loggedSets.at(-1)?.setNumber ? loggedSets.at(-1)!.setNumber + 1 : 1);
+    const prescribedSets = prescribed?.prescribedSets ?? null;
+    const setLine =
+      prescribedSets && loggedSets.length > 0
+        ? `Set ${currentSet} of ${prescribedSets} is next.`
+        : prescribedSets
+          ? `You are on set ${currentSet} of ${prescribedSets}.`
+          : `You are on set ${currentSet}.`;
+    const loggedLine =
+      loggedSets.length > 0
+        ? loggedSets
+            .map((set) =>
+              [
+                `S${set.setNumber}`,
+                set.weight ? `${set.weight} lb` : null,
+                set.reps ? `x${set.reps}` : null,
+                set.rpe ? `RPE ${set.rpe}` : null
+              ]
+                .filter(Boolean)
+                .join(" ")
+            )
+            .join(" • ")
+        : "No working sets logged yet.";
+    const recommendation = buildNextSetRecommendation({
+      exerciseName: state.currentExercise,
+      prescribedSets,
+      currentSet,
+      loggedSets
+    });
+    const progressLine = `Progress: ${state.completedExercises.length} complete, ${state.skippedExercises.length} skipped.`;
+
+    return [
+      `📍 *Status — ${state.workoutName}*`,
+      `Current: *${state.currentExercise}*`,
+      setLine,
+      `Logged: ${loggedLine}`,
+      `Next: ${recommendation}`,
+      progressLine
+    ].join("\n");
   }
 
   async buildWorkoutCompletionSummary(workoutId: string): Promise<string> {
