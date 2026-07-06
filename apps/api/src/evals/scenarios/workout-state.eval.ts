@@ -1,4 +1,9 @@
-import { buildNextSetRecommendation } from "../../services/workout/workout-engine.js";
+import {
+  buildFirstSetTarget,
+  buildNextSetRecommendation,
+  buildStatusPlanLine
+} from "../../services/workout/workout-engine.js";
+import { pushWorkout } from "../fixtures/coach-context.fixture.js";
 import type { WorkoutState } from "../../types/domain.js";
 import type { EvalScenario } from "../types.js";
 
@@ -36,6 +41,26 @@ export const workoutStateScenarios: EvalScenario[] = [
         "optional=rower 500m",
         "next=Bench Press"
       ]
+    }
+  },
+  {
+    name: "fresh exercise status includes prescription and target",
+    run: () => {
+      const incline = pushWorkout.exercises.find(
+        (item) => item.exercise.name === "Incline Dumbbell Press"
+      );
+
+      return {
+        reply: [
+          buildStatusPlanLine(incline),
+          buildFirstSetTarget(incline)
+        ].join("\n"),
+        actions: []
+      };
+    },
+    expect: {
+      replyIncludes: ["Plan: 4x10", "RPE", "Target", "10 reps"],
+      replyExcludes: ["undefined"]
     }
   },
   {

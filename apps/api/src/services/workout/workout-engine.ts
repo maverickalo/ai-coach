@@ -66,6 +66,53 @@ export function buildNextSetRecommendation(input: {
   return `For ${nextSetText}, repeat the last weight if form felt clean. If the set felt grindy, reduce slightly and protect reps.`;
 }
 
+export function buildFirstSetTarget(
+  item: CurrentWorkout["exercises"][number] | undefined
+): string {
+  if (!item) {
+    return "Target: start with a conservative weight you can move cleanly at RPE 6-7, then adjust from there.";
+  }
+
+  const reps = item.prescribedReps ? `${item.prescribedReps} reps` : "the prescribed reps";
+  if (item.prescribedWeight) {
+    return `Target: start at ${item.prescribedWeight} for ${reps}. Keep set 1 around RPE 6-7 so there is room to build.`;
+  }
+
+  const last = item.lastPerformance;
+  if (last?.weight) {
+    return `Target: last time was ${last.weight} lb for ${last.sets ?? "?"}x${last.reps ?? "?"}${last.rpe ? ` at RPE ${last.rpe}` : ""}. Start near that if warm-ups feel good, or 5-10 lb lighter if it feels sticky.`;
+  }
+
+  return `Target: no prior weight is logged yet. Choose a weight you can hit for ${reps} at RPE 6-7, then send the set and I’ll adjust the rest.`;
+}
+
+export function buildStatusPlanLine(
+  item: CurrentWorkout["exercises"][number] | undefined
+): string {
+  if (!item) {
+    return "Plan: follow the prescribed sets and reps.";
+  }
+
+  const volume =
+    item.prescribedSets || item.prescribedReps
+      ? `${item.prescribedSets ?? "?"}x${item.prescribedReps ?? "?"}`
+      : "as prescribed";
+  const rest = /bench|press|squat|deadlift|row/i.test(item.exercise.name)
+    ? "Rest 2-3 min on hard sets."
+    : "Rest 60-90 sec.";
+  const cues = item.exercise.cues?.slice(0, 2).join(" • ");
+
+  return [
+    `Plan: ${volume}`,
+    item.prescribedWeight ? `Load: ${item.prescribedWeight}` : null,
+    `RPE: start 6-7, finish around 8 if form holds.`,
+    rest,
+    cues ? `Cue: ${cues}` : null
+  ]
+    .filter(Boolean)
+    .join(" | ");
+}
+
 export class WorkoutEngine {
   constructor(private readonly db: Database) {}
 
@@ -693,7 +740,7 @@ export class WorkoutEngine {
       prescribedSets && loggedSets.length > 0
         ? `Set ${currentSet} of ${prescribedSets} is next.`
         : prescribedSets
-          ? `You are on set ${currentSet} of ${prescribedSets}.`
+          ? `Set ${currentSet} of ${prescribedSets} is next.`
           : `You are on set ${currentSet}.`;
     const loggedLine =
       loggedSets.length > 0
@@ -716,12 +763,17 @@ export class WorkoutEngine {
       currentSet,
       loggedSets
     });
+    const planLine = buildStatusPlanLine(prescribed);
+    const targetLine =
+      loggedSets.length === 0 ? buildFirstSetTarget(prescribed) : null;
     const progressLine = `Progress: ${state.completedExercises.length} complete, ${state.skippedExercises.length} skipped.`;
 
     return [
       `📍 *Status — ${state.workoutName}*`,
       `Current: *${state.currentExercise}*`,
       setLine,
+      planLine,
+      targetLine,
       `Logged: ${loggedLine}`,
       `Next: ${recommendation}`,
       progressLine
