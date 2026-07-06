@@ -173,6 +173,65 @@ export const workoutLoggingScenarios: EvalScenario[] = [
     }
   },
   {
+    name: "dumbbell reps x weight set log preserves reps and load",
+    run: () => {
+      const parsedWorkout = parseSetOnlyLog(
+        "First set done 10 x 35 pound dbs in each hand rpe 7",
+        "Incline Dumbbell Press",
+        1
+      );
+      const exercise = parsedWorkout?.exercises[0];
+      const set = exercise?.setDetails?.[0];
+
+      return {
+        reply:
+          exercise?.sets === 1 &&
+          exercise.reps === "10" &&
+          exercise.weight === 35 &&
+          set?.setNumber === 1 &&
+          set.reps === 10 &&
+          set.weight === 35 &&
+          set.rpe === 7
+            ? "logged DB set as 35 lb x 10"
+            : `failed: weight=${exercise?.weight} reps=${exercise?.reps}`,
+        actions: []
+      };
+    },
+    expect: {
+      replyIncludes: ["logged DB set as 35 lb x 10"],
+      replyExcludes: ["failed", "weight=10", "reps=35"]
+    }
+  },
+  {
+    name: "barbell weight x reps set log still preserves load and reps",
+    run: () => {
+      const parsedWorkout = parseSetOnlyLog(
+        "Last set 145x8 RPE 8",
+        "Bench Press",
+        5
+      );
+      const exercise = parsedWorkout?.exercises[0];
+      const set = exercise?.setDetails?.[0];
+
+      return {
+        reply:
+          exercise?.sets === 5 &&
+          exercise.reps === "8" &&
+          exercise.weight === 145 &&
+          set?.setNumber === 5 &&
+          set.reps === 8 &&
+          set.weight === 145
+            ? "logged barbell set as 145 lb x 8"
+            : `failed: weight=${exercise?.weight} reps=${exercise?.reps}`,
+        actions: []
+      };
+    },
+    expect: {
+      replyIncludes: ["logged barbell set as 145 lb x 8"],
+      replyExcludes: ["failed", "weight=8", "reps=145"]
+    }
+  },
+  {
     name: "warmup completion does not complete workout",
     run: () => {
       const status = deriveWorkoutStatusFromParsedWorkout({

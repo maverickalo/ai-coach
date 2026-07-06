@@ -189,6 +189,33 @@ const ordinalSetNumbers: Record<string, number> = {
   "6th": 6
 };
 
+function parseSetPerformance(body: string): {
+  weight: number;
+  reps: number;
+} | null {
+  const repsFirstMatch = body.match(
+    /(\d+)\s*[xX]\s*(\d+(?:\.\d+)?)\s*(?:lb|lbs|pounds?|#|dbs?|dumbbells?)\b/i
+  );
+  if (repsFirstMatch?.[1] && repsFirstMatch[2]) {
+    return {
+      reps: Number(repsFirstMatch[1]),
+      weight: Number(repsFirstMatch[2])
+    };
+  }
+
+  const weightFirstMatch = body.match(
+    /(\d+(?:\.\d+)?)\s*(?:lb|lbs|pounds?|#)?\s*[xX]\s*(\d+)/
+  );
+  if (!weightFirstMatch?.[1] || !weightFirstMatch[2]) {
+    return null;
+  }
+
+  return {
+    weight: Number(weightFirstMatch[1]),
+    reps: Number(weightFirstMatch[2])
+  };
+}
+
 export function parseSetOnlyLog(
   body: string,
   exerciseName: string | null,
@@ -212,16 +239,13 @@ export function parseSetOnlyLog(
     return null;
   }
 
-  const performanceMatch = body.match(
-    /(\d+(?:\.\d+)?)\s*(?:lb|lbs)?\s*[xX]\s*(\d+)/
-  );
-  if (!performanceMatch?.[1] || !performanceMatch[2]) {
+  const performance = parseSetPerformance(body);
+  if (!performance) {
     return null;
   }
 
   const rpeMatch = body.match(/rpe\s*(10|[1-9](?:\.\d)?)/i);
-  const weight = Number(performanceMatch[1]);
-  const reps = Number(performanceMatch[2]);
+  const { weight, reps } = performance;
   const rpe = rpeMatch?.[1] ? Number(rpeMatch[1]) : null;
   const exercise: ParsedExerciseLog = {
     exerciseName,
