@@ -49,10 +49,10 @@ export const workoutStateScenarios: EvalScenario[] = [
       reply: [
         "📋 *Workout Status — Push*",
         "Current: *Incline Dumbbell Press*, set 3",
-        "✅ *Bench Press* — 5x8 — 5/5 sets, 145 lb, x8, RPE 8.0",
-        "🔵 *Incline Dumbbell Press* — 4x10 — current, set 3 of 4",
-        "⬜ *Standing Overhead Press* — 4x10",
-        "Legend: ✅ complete • 🔵 current • ⬜ upcoming • ⏭️ skipped",
+        "[x] *Bench Press* — 5x8 — 5/5 sets, 145 lb, x8, RPE 8.0",
+        "[>] *Incline Dumbbell Press* — 4x10 — current, set 3 of 4",
+        "[ ] *Standing Overhead Press* — 4x10",
+        "Legend: [x] complete • [>] current • [ ] upcoming • [skip] skipped",
         "Use `status` for just the current set guidance."
       ].join("\n"),
       actions: []
@@ -60,9 +60,9 @@ export const workoutStateScenarios: EvalScenario[] = [
     expect: {
       replyIncludes: [
         "Workout Status",
-        "✅ *Bench Press*",
-        "🔵 *Incline Dumbbell Press*",
-        "⬜ *Standing Overhead Press*",
+        "[x] *Bench Press*",
+        "[>] *Incline Dumbbell Press*",
+        "[ ] *Standing Overhead Press*",
         "Use `status`"
       ]
     }

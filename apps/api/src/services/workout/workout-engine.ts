@@ -811,7 +811,7 @@ export class WorkoutEngine {
         (name) => name.toLowerCase() === item.exercise.name.toLowerCase()
       );
       const isCurrent = state.currentExercise === item.exercise.name;
-      const mark = isSkipped ? "⏭️" : isComplete ? "✅" : isCurrent ? "🔵" : "⬜";
+      const mark = isSkipped ? "[skip]" : isComplete ? "[x]" : isCurrent ? "[>]" : "[ ]";
       const prescription =
         item.prescribedSets || item.prescribedReps
           ? `${item.prescribedSets ?? "?"}x${item.prescribedReps ?? "?"}`
@@ -848,7 +848,7 @@ export class WorkoutEngine {
       "",
       ...checklist,
       "",
-      "Legend: ✅ complete • 🔵 current • ⬜ upcoming • ⏭️ skipped",
+      "Legend: [x] complete • [>] current • [ ] upcoming • [skip] skipped",
       "Use `status` for just the current set guidance."
     ].join("\n");
   }
