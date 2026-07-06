@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, ilike, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, inArray, lte, sql } from "drizzle-orm";
 import type { Database } from "../../db/index.js";
 import {
   coachEvents,
@@ -604,6 +604,55 @@ export class WorkoutEngine {
     });
   }
 
+  async closeWorkoutForToday(
+    userId: string,
+    workoutId: string,
+    skippedReason: string
+  ): Promise<void> {
+    const workout = await this.getWorkoutById(workoutId);
+    if (!workout) {
+      throw new Error(`Workout not found: ${workoutId}`);
+    }
+
+    const existingLogs = await this.db
+      .select({ exerciseId: exerciseLogs.exerciseId })
+      .from(exerciseLogs)
+      .where(eq(exerciseLogs.workoutId, workoutId));
+    const loggedExerciseIds = new Set(existingLogs.map((log) => log.exerciseId));
+    const unloggedMainExercises = workout.exercises.filter(
+      (item) => item.notes !== "Warm-up" && !loggedExerciseIds.has(item.exercise.id)
+    );
+
+    for (const item of unloggedMainExercises) {
+      await this.db
+        .insert(exerciseLogs)
+        .values({
+          workoutId,
+          exerciseId: item.exercise.id,
+          status: "skipped",
+          skippedReason,
+          notes: skippedReason
+        })
+        .onConflictDoNothing();
+
+      await this.db.insert(coachEvents).values({
+        userId,
+        workoutId,
+        eventType: "ExerciseSkipped",
+        payload: {
+          exerciseName: item.exercise.name,
+          skippedReason,
+          source: "done_for_today"
+        }
+      });
+    }
+
+    await this.updateWorkoutStatus(
+      workoutId,
+      unloggedMainExercises.length > 0 ? "partially_completed" : "completed"
+    );
+  }
+
   async updateWorkoutStatus(
     workoutId: string,
     status:
@@ -1000,6 +1049,7 @@ export class WorkoutEngine {
     const logs = await this.db
       .select({
         exerciseLogId: exerciseLogs.id,
+        exerciseId: exerciseLogs.exerciseId,
         exerciseName: exercises.name,
         status: exerciseLogs.status,
         sets: exerciseLogs.setsCompleted,
@@ -1015,45 +1065,123 @@ export class WorkoutEngine {
       .where(eq(exerciseLogs.workoutId, workoutId))
       .orderBy(asc(exerciseLogs.createdAt));
 
-    const completed = logs.filter((log) => log.status !== "skipped");
-    const skipped = logs.filter((log) => log.status === "skipped");
+    const setRows =
+      logs.length > 0
+        ? await this.db
+            .select({
+              exerciseLogId: exerciseSets.exerciseLogId,
+              setNumber: exerciseSets.setNumber,
+              reps: exerciseSets.reps,
+              weight: exerciseSets.weight,
+              rpe: exerciseSets.rpe,
+              notes: exerciseSets.notes
+            })
+            .from(exerciseSets)
+            .where(inArray(exerciseSets.exerciseLogId, logs.map((log) => log.exerciseLogId)))
+            .orderBy(asc(exerciseSets.setNumber))
+        : [];
+    const setsByLogId = new Map<string, typeof setRows>();
+    for (const set of setRows) {
+      const existing = setsByLogId.get(set.exerciseLogId) ?? [];
+      existing.push(set);
+      setsByLogId.set(set.exerciseLogId, existing);
+    }
+    const exerciseOrder = new Map(
+      workout.exercises.map((item, index) => [item.exercise.id, index])
+    );
+    const orderedLogs = logs.toSorted(
+      (a, b) =>
+        (exerciseOrder.get(a.exerciseId) ?? 999) -
+        (exerciseOrder.get(b.exerciseId) ?? 999)
+    );
+    const skipped = orderedLogs.filter((log) => log.status === "skipped");
     const painNotes = logs.filter(
       (log) =>
         log.painScore !== null ||
         /(hurt|pain|sore|ache|tweak|injur)/i.test(log.notes ?? "")
     );
-    const nextTime = logs.map((log) => {
+
+    const formatSetLine = (log: (typeof logs)[number]) => {
+      const sets = setsByLogId.get(log.exerciseLogId) ?? [];
+      if (sets.length === 0) {
+        return `• *${log.exerciseName}*: ${log.sets ?? "?"} sets, ${formatLoggedWeight(log.weight, log.notes) ?? "load not logged"} x${log.reps ?? "?"}${log.rpe ? `, RPE ${log.rpe}` : ""}`;
+      }
+
+      const setText = sets
+        .map((set) =>
+          [
+            `S${set.setNumber}`,
+            formatLoggedWeight(set.weight, set.notes),
+            set.reps ? `x${set.reps}` : null,
+            set.rpe ? `RPE ${set.rpe}` : null
+          ]
+            .filter(Boolean)
+            .join(" ")
+        )
+        .join(" • ");
+      return `• *${log.exerciseName}*: ${setText}`;
+    };
+
+    const nextTime = orderedLogs.map((log) => {
       if (log.status === "skipped") {
-        return `• ${log.exerciseName}: no progression. ${log.skippedReason ? `Skipped because ${log.skippedReason}.` : "Ask why it was skipped."}`;
+        return `• *${log.exerciseName}*: no progression next week. ${log.skippedReason ? `Skipped because ${log.skippedReason}.` : "Ask why it was skipped."}`;
       }
       if (log.painScore !== null || /(hurt|pain|sore|ache|tweak|injur)/i.test(log.notes ?? "")) {
-        return `• ${log.exerciseName}: hold or reduce until pain-free.`;
+        return `• *${log.exerciseName}*: hold or reduce until pain-free.`;
       }
       if (log.status === "partial") {
-        return `• ${log.exerciseName}: hold the same weight next time.`;
+        return `• *${log.exerciseName}*: hold the same weight next time.`;
       }
-      return `• ${log.exerciseName}: progress only if all sets were solid at RPE 7-8.`;
+      const prescribed = workout.exercises.find(
+        (item) => item.exercise.id === log.exerciseId
+      );
+      const sets = setsByLogId.get(log.exerciseLogId) ?? [];
+      const rpes = sets
+        .map((set) => (set.rpe ? Number(set.rpe) : null))
+        .filter((rpe): rpe is number => rpe !== null);
+      const maxRpe = rpes.length > 0 ? Math.max(...rpes) : null;
+      const completedPrescribed =
+        prescribed?.prescribedSets !== null &&
+        prescribed?.prescribedSets !== undefined &&
+        sets.length >= prescribed.prescribedSets;
+      const lastSet = sets.at(-1);
+      const lastLoad = formatLoggedWeight(lastSet?.weight, lastSet?.notes);
+
+      if (maxRpe !== null && maxRpe >= 9) {
+        return `• *${log.exerciseName}*: hold or reduce next week${lastLoad ? ` from ${lastLoad}` : ""}; today hit RPE ${maxRpe}.`;
+      }
+      if (completedPrescribed && maxRpe !== null && maxRpe <= 8) {
+        return `• *${log.exerciseName}*: small progression next week${lastLoad ? ` from ${lastLoad}` : ""} if warm-ups feel good.`;
+      }
+      return `• *${log.exerciseName}*: repeat and build cleaner data next week.`;
     });
 
-    const body = WorkoutEngine.formatWorkoutCompletionSummary({
-      workoutName: workout.name,
-      completed: completed.map((log) => ({
-        exerciseName: log.exerciseName,
-        sets: log.sets,
-        reps: log.reps,
-        weight: log.weight,
-        rpe: log.rpe
-      })),
-      skipped: skipped.map((log) => ({
-        exerciseName: log.exerciseName,
-        skippedReason: log.skippedReason
-      })),
-      painNotes: painNotes.map((log) => ({
-        exerciseName: log.exerciseName,
-        note: log.notes ?? `pain score ${log.painScore}`
-      })),
-      nextTime
-    });
+    const completedLines = orderedLogs
+      .filter((log) => log.status !== "skipped")
+      .map(formatSetLine);
+    const skippedLines = skipped.map(
+      (log) =>
+        `• *${log.exerciseName}*${log.skippedReason ? ` — ${log.skippedReason}` : ""}`
+    );
+    const painLines = painNotes.map(
+      (log) => `• *${log.exerciseName}*: ${log.notes ?? `pain score ${log.painScore}`}`
+    );
+
+    const body = [
+      "✅ *Workout Complete*",
+      `*${workout.name}*`,
+      completedLines.length > 0
+        ? ["*Logged today*", ...completedLines].join("\n")
+        : "*Logged today*\n• Nothing logged yet",
+      skippedLines.length > 0
+        ? ["*Skipped / left for next time*", ...skippedLines].join("\n")
+        : null,
+      painLines.length > 0 ? ["*Pain / notes*", ...painLines].join("\n") : null,
+      nextTime.length > 0 ? ["*Next week progression*", ...nextTime].join("\n") : null,
+      "I saved this workout. Next Push session will use these logs as the baseline, but exercises that hit RPE 9-10 should be held or reduced rather than automatically increased."
+    ]
+      .filter(Boolean)
+      .join("\n\n");
 
     await this.db
       .update(workouts)

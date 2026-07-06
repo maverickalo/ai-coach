@@ -146,6 +146,52 @@ export const workoutLoggingScenarios: EvalScenario[] = [
     }
   },
   {
+    name: "rep typo after set performance is treated as RPE",
+    run: () => {
+      const parsedWorkout = parseSetOnlyLog(
+        "Second set 65lbs x 10 rep 8",
+        "Overhead Press",
+        2
+      );
+      const set = parsedWorkout?.exercises[0]?.setDetails?.[0];
+
+      return {
+        reply:
+          set?.weight === 65 && set.reps === 10 && set.rpe === 8
+            ? "parsed rep typo as RPE"
+            : `failed: weight=${set?.weight} reps=${set?.reps} rpe=${set?.rpe}`,
+        actions: []
+      };
+    },
+    expect: {
+      replyIncludes: ["parsed rep typo as RPE"],
+      replyExcludes: ["failed"]
+    }
+  },
+  {
+    name: "dumbbell set shorthand preserves per-hand context",
+    run: () => {
+      const parsedWorkout = parseSetOnlyLog(
+        "Last set 40lbs x 10 RPE 10",
+        "Incline Dumbbell Press",
+        4
+      );
+      const set = parsedWorkout?.exercises[0]?.setDetails?.[0];
+
+      return {
+        reply:
+          set?.notes?.includes("dumbbells in each hand")
+            ? "preserved dumbbell per-hand context"
+            : `failed: notes=${set?.notes}`,
+        actions: []
+      };
+    },
+    expect: {
+      replyIncludes: ["preserved dumbbell per-hand context"],
+      replyExcludes: ["failed"]
+    }
+  },
+  {
     name: "same as last set phrase routes to clone-last-set handler",
     run: () => ({
       reply:

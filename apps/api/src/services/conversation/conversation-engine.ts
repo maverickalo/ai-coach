@@ -111,6 +111,12 @@ function isNextExerciseRequest(body: string): boolean {
   );
 }
 
+function isWorkoutDoneForTodayRequest(body: string): boolean {
+  return /\b(done for today|finished for today|done with the workout|finished the workout|i am done|i'?m done|wrap it up|end session)\b/i.test(
+    body
+  );
+}
+
 function isWorkoutStatusRequest(body: string): boolean {
   const normalized = body.trim().toLowerCase();
   return (
@@ -268,9 +274,14 @@ export function parseSetOnlyLog(
     return null;
   }
 
-  const rpeMatch = body.match(/rpe\s*(10|[1-9](?:\.\d)?)/i);
+  const rpeMatch = body.match(/\b(?:rpe|rep)\s*(10|[1-9](?:\.\d)?)/i);
   const { weight, reps } = performance;
   const rpe = rpeMatch?.[1] ? Number(rpeMatch[1]) : null;
+  const notes =
+    /\bdumbbell\b/i.test(exerciseName) &&
+    !/\b(each|per)\s+hand\b|\bin\s+each\s+hand\b|\bdbs?\b|\bdumbbells?\b/i.test(body)
+      ? `${body.trim()}; dumbbells in each hand`
+      : body.trim();
   const exercise: ParsedExerciseLog = {
     exerciseName,
     status: "completed",
@@ -284,13 +295,13 @@ export function parseSetOnlyLog(
         reps,
         weight,
         rpe,
-        notes: body.trim()
+        notes
       }
     ],
     difficulty: null,
     skippedReason: null,
     substituteExerciseName: null,
-    notes: body.trim()
+    notes
   };
 
   return {
@@ -385,6 +396,8 @@ export class ConversationEngine {
         result = await this.handleWorkoutGoBack(input.userId, context);
       } else if (isNextExerciseRequest(input.body)) {
         result = await this.handleNextExercise(input.userId, context);
+      } else if (isWorkoutDoneForTodayRequest(input.body)) {
+        result = await this.handleWorkoutDoneForToday(input.userId, context);
       } else if (isFullWorkoutStatusRequest(input.body)) {
         result = await this.handleFullWorkoutStatusRequest(context);
       } else if (isWorkoutStatusRequest(input.body)) {
@@ -814,6 +827,33 @@ export class ConversationEngine {
       intent: "general_chat",
       actions: [],
       reply: await this.workoutEngine.buildWorkoutStatusUpdate(
+        context.currentWorkout.id
+      )
+    };
+  }
+
+  private async handleWorkoutDoneForToday(
+    userId: string,
+    context: Awaited<ReturnType<CoachContextBuilder["build"]>>
+  ): Promise<CoachResult> {
+    if (!context.currentWorkout) {
+      return {
+        intent: "log_workout",
+        actions: [],
+        reply: "I do not see an active workout for today, so I cannot close it out."
+      };
+    }
+
+    await this.workoutEngine.closeWorkoutForToday(
+      userId,
+      context.currentWorkout.id,
+      "Ended session for today"
+    );
+
+    return {
+      intent: "log_workout",
+      actions: [],
+      reply: await this.workoutEngine.buildWorkoutCompletionSummary(
         context.currentWorkout.id
       )
     };
