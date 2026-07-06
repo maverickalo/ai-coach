@@ -193,6 +193,16 @@ function parseSetPerformance(body: string): {
   weight: number;
   reps: number;
 } | null {
+  const explicitWeightFirstMatch = body.match(
+    /(\d+(?:\.\d+)?)\s*(?:lb|lbs|pounds?|#|dbs?|dumbbells?)\b[^,\n;]*?[xX]\s*(\d+)\b/i
+  );
+  if (explicitWeightFirstMatch?.[1] && explicitWeightFirstMatch[2]) {
+    return {
+      weight: Number(explicitWeightFirstMatch[1]),
+      reps: Number(explicitWeightFirstMatch[2])
+    };
+  }
+
   const repsFirstMatch = body.match(
     /(\d+)\s*[xX]\s*(\d+(?:\.\d+)?)\s*(?:lb|lbs|pounds?|#|dbs?|dumbbells?)\b/i
   );

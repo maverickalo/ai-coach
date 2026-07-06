@@ -203,6 +203,66 @@ export const workoutLoggingScenarios: EvalScenario[] = [
     }
   },
   {
+    name: "dumbbell weight x reps set log preserves load and reps",
+    run: () => {
+      const parsedWorkout = parseSetOnlyLog(
+        "Set 2 down 35lb dbs x 10 RPE 7",
+        "Incline Dumbbell Press",
+        2
+      );
+      const exercise = parsedWorkout?.exercises[0];
+      const set = exercise?.setDetails?.[0];
+
+      return {
+        reply:
+          exercise?.sets === 2 &&
+          exercise.reps === "10" &&
+          exercise.weight === 35 &&
+          set?.setNumber === 2 &&
+          set.reps === 10 &&
+          set.weight === 35 &&
+          set.rpe === 7
+            ? "logged DB set as 35 lb x 10"
+            : `failed: weight=${exercise?.weight} reps=${exercise?.reps}`,
+        actions: []
+      };
+    },
+    expect: {
+      replyIncludes: ["logged DB set as 35 lb x 10"],
+      replyExcludes: ["failed", "weight=10", "reps=35"]
+    }
+  },
+  {
+    name: "dumbbell per-hand set log preserves load and reps",
+    run: () => {
+      const parsedWorkout = parseSetOnlyLog(
+        "second set 35 pound dumbbells each hand x10 rpe 8",
+        "Incline Dumbbell Press",
+        2
+      );
+      const exercise = parsedWorkout?.exercises[0];
+      const set = exercise?.setDetails?.[0];
+
+      return {
+        reply:
+          exercise?.sets === 2 &&
+          exercise.reps === "10" &&
+          exercise.weight === 35 &&
+          set?.setNumber === 2 &&
+          set.reps === 10 &&
+          set.weight === 35 &&
+          set.rpe === 8
+            ? "logged DB each-hand set as 35 lb x 10"
+            : `failed: weight=${exercise?.weight} reps=${exercise?.reps}`,
+        actions: []
+      };
+    },
+    expect: {
+      replyIncludes: ["logged DB each-hand set as 35 lb x 10"],
+      replyExcludes: ["failed", "weight=10", "reps=35"]
+    }
+  },
+  {
     name: "barbell weight x reps set log still preserves load and reps",
     run: () => {
       const parsedWorkout = parseSetOnlyLog(
