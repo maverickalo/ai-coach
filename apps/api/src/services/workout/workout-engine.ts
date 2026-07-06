@@ -780,6 +780,79 @@ export class WorkoutEngine {
     ].join("\n");
   }
 
+  async buildFullWorkoutStatusUpdate(workoutId: string): Promise<string> {
+    const workout = await this.getWorkoutById(workoutId);
+    const state = await this.getWorkoutState(workoutId);
+    if (!workout || !state) {
+      return "I couldn't reload the current workout state. Send `status` and I’ll try to pick it back up.";
+    }
+
+    const logRows = await this.db
+      .select({
+        exerciseName: exercises.name,
+        status: exerciseLogs.status,
+        setsCompleted: exerciseLogs.setsCompleted,
+        repsCompleted: exerciseLogs.repsCompleted,
+        weight: exerciseLogs.weight,
+        rpe: exerciseLogs.rpe
+      })
+      .from(exerciseLogs)
+      .innerJoin(exercises, eq(exerciseLogs.exerciseId, exercises.id))
+      .where(eq(exerciseLogs.workoutId, workoutId));
+    const logsByName = new Map(
+      logRows.map((log) => [log.exerciseName.toLowerCase(), log])
+    );
+
+    const mainExercises = workout.exercises.filter((item) => item.notes !== "Warm-up");
+    const checklist = mainExercises.map((item) => {
+      const log = logsByName.get(item.exercise.name.toLowerCase());
+      const isSkipped = log?.status === "skipped";
+      const isComplete = state.completedExercises.some(
+        (name) => name.toLowerCase() === item.exercise.name.toLowerCase()
+      );
+      const isCurrent = state.currentExercise === item.exercise.name;
+      const mark = isSkipped ? "⏭️" : isComplete ? "✅" : isCurrent ? "🔵" : "⬜";
+      const prescription =
+        item.prescribedSets || item.prescribedReps
+          ? `${item.prescribedSets ?? "?"}x${item.prescribedReps ?? "?"}`
+          : "as prescribed";
+      const logged =
+        log && log.status !== "skipped"
+          ? [
+              log.setsCompleted ? `${log.setsCompleted}/${item.prescribedSets ?? "?"} sets` : null,
+              log.weight ? `${log.weight} lb` : null,
+              log.repsCompleted ? `x${log.repsCompleted}` : null,
+              log.rpe ? `RPE ${log.rpe}` : null
+            ]
+              .filter(Boolean)
+              .join(", ")
+          : null;
+      const suffix = isCurrent
+        ? ` — current, set ${state.currentSet ?? 1}${item.prescribedSets ? ` of ${item.prescribedSets}` : ""}`
+        : logged
+          ? ` — ${logged}`
+          : isSkipped
+            ? " — skipped"
+            : "";
+
+      return `${mark} *${item.exercise.name}* — ${prescription}${suffix}`;
+    });
+
+    const current = state.currentExercise
+      ? `Current: *${state.currentExercise}*, set ${state.currentSet ?? 1}`
+      : "Current: all planned lifts complete or advanced.";
+
+    return [
+      `📋 *Workout Status — ${state.workoutName}*`,
+      current,
+      "",
+      ...checklist,
+      "",
+      "Legend: ✅ complete • 🔵 current • ⬜ upcoming • ⏭️ skipped",
+      "Use `status` for just the current set guidance."
+    ].join("\n");
+  }
+
   async buildWorkoutCompletionSummary(workoutId: string): Promise<string> {
     const workout = await this.getWorkoutById(workoutId);
     if (!workout) {

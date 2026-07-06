@@ -113,12 +113,19 @@ function isNextExerciseRequest(body: string): boolean {
 function isWorkoutStatusRequest(body: string): boolean {
   const normalized = body.trim().toLowerCase();
   return (
-    /^(status|workout status|where am i|where are we|where are we at|where are we at with things|where are we at\?)\s*[.!?]*$/.test(
+    /^(status|where am i|where are we|where are we at|where are we at with things|where are we at\?)\s*[.!?]*$/.test(
       normalized
     ) ||
     /\b(status update|where we'?re at|where i'?m at|what set am i on|what set are we on|what's next|whats next)\b/.test(
       normalized
     )
+  );
+}
+
+function isFullWorkoutStatusRequest(body: string): boolean {
+  const normalized = body.trim().toLowerCase();
+  return /^(workout status|full workout status|show workout status|show full workout|full status)\s*[.!?]*$/.test(
+    normalized
   );
 }
 
@@ -371,6 +378,8 @@ export class ConversationEngine {
         result = await this.handleWorkoutGoBack(input.userId, context);
       } else if (isNextExerciseRequest(input.body)) {
         result = await this.handleNextExercise(input.userId, context);
+      } else if (isFullWorkoutStatusRequest(input.body)) {
+        result = await this.handleFullWorkoutStatusRequest(context);
       } else if (isWorkoutStatusRequest(input.body)) {
         result = await this.handleWorkoutStatusRequest(context);
       } else if (isCurrentExerciseSkipRequest(input.body)) {
@@ -769,6 +778,26 @@ export class ConversationEngine {
       intent: "general_chat",
       actions: [],
       reply: await this.workoutEngine.buildWorkoutStatusUpdate(
+        context.currentWorkout.id
+      )
+    };
+  }
+
+  private async handleFullWorkoutStatusRequest(
+    context: Awaited<ReturnType<CoachContextBuilder["build"]>>
+  ): Promise<CoachResult> {
+    if (!context.currentWorkout) {
+      return {
+        intent: "general_chat",
+        actions: [],
+        reply: "I do not see today's workout yet. Ask me for today's workout first."
+      };
+    }
+
+    return {
+      intent: "general_chat",
+      actions: [],
+      reply: await this.workoutEngine.buildFullWorkoutStatusUpdate(
         context.currentWorkout.id
       )
     };
