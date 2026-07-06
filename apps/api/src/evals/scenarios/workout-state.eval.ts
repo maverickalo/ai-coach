@@ -88,12 +88,32 @@ export const workoutStateScenarios: EvalScenario[] = [
               notes: "Cable fly set 1 20lbs on each side x15 RPE 6"
             }
           ]
+        }),
+        buildNextSetRecommendation({
+          exerciseName: "Cable Fly",
+          prescribedSets: 3,
+          currentSet: 3,
+          loggedSets: [
+            {
+              setNumber: 2,
+              weight: "25",
+              reps: 15,
+              rpe: "10",
+              notes: "Set 2 logged 25 lbs each arm x15 rpe 10"
+            }
+          ]
         })
       ].join("\n"),
       actions: []
     }),
     expect: {
-      replyIncludes: ["20 lb/side", "35 lb/hand", "145 lb", "25 lb/side"],
+      replyIncludes: [
+        "20 lb/side",
+        "35 lb/hand",
+        "145 lb",
+        "25 lb/side",
+        "20 lb/arm"
+      ],
       replyExcludes: ["20 lb\n35 lb", "145 lb/side"]
     }
   },

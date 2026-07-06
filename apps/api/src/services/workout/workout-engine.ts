@@ -39,8 +39,12 @@ export function formatLoggedWeight(
   }
 
   const noteText = notes ?? "";
-  if (/\b(each|per)\s+(side|arm)\b|\bon\s+each\s+side\b/i.test(noteText)) {
+  if (/\b(each|per)\s+side\b|\bon\s+each\s+side\b/i.test(noteText)) {
     return `${weight} lb/side`;
+  }
+
+  if (/\b(each|per)\s+arm\b|\bon\s+each\s+arm\b/i.test(noteText)) {
+    return `${weight} lb/arm`;
   }
 
   if (/\b(each|per)\s+hand\b|\bin\s+each\s+hand\b|\bdbs?\b|\bdumbbells?\b/i.test(noteText)) {
@@ -80,7 +84,7 @@ export function buildNextSetRecommendation(input: {
   }
 
   if (rpe !== null && rpe >= 9 && weight !== null) {
-    const reduced = Math.max(0, Math.round((weight * 0.95) / 5) * 5);
+    const reduced = Math.max(0, Math.min(weight - 5, Math.floor((weight * 0.9) / 5) * 5));
     return `For ${nextSetText}, take weight off. Try around ${formatLoggedWeight(String(reduced), lastSet.notes) ?? `${reduced} lb`} and rest longer; RPE 9+ is too hot to keep forcing across the remaining sets.`;
   }
 
