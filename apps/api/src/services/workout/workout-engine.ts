@@ -470,6 +470,115 @@ export class WorkoutEngine {
     });
   }
 
+  async logSameAsLastSet(
+    userId: string,
+    workoutId: string,
+    notes: string
+  ): Promise<LoggedSetSummary & { exerciseName: string } | null> {
+    const state = await this.getWorkoutState(workoutId);
+    if (!state?.currentExercise) {
+      return null;
+    }
+
+    const [log] = await this.db
+      .select({
+        id: exerciseLogs.id,
+        exerciseId: exerciseLogs.exerciseId,
+        exerciseName: exercises.name
+      })
+      .from(exerciseLogs)
+      .innerJoin(exercises, eq(exerciseLogs.exerciseId, exercises.id))
+      .where(
+        and(
+          eq(exerciseLogs.workoutId, workoutId),
+          ilike(exercises.name, state.currentExercise)
+        )
+      )
+      .limit(1);
+
+    if (!log) {
+      return null;
+    }
+
+    const [lastSet] = await this.db
+      .select({
+        setNumber: exerciseSets.setNumber,
+        reps: exerciseSets.reps,
+        weight: exerciseSets.weight,
+        rpe: exerciseSets.rpe,
+        notes: exerciseSets.notes
+      })
+      .from(exerciseSets)
+      .where(eq(exerciseSets.exerciseLogId, log.id))
+      .orderBy(desc(exerciseSets.setNumber))
+      .limit(1);
+
+    if (!lastSet) {
+      return null;
+    }
+
+    const setNumber = state.currentSet ?? lastSet.setNumber + 1;
+    const clonedNotes = lastSet.notes
+      ? `${notes}; same as set ${lastSet.setNumber}: ${lastSet.notes}`
+      : notes;
+    await this.db
+      .insert(exerciseSets)
+      .values({
+        exerciseLogId: log.id,
+        setNumber,
+        reps: lastSet.reps,
+        weight: lastSet.weight,
+        rpe: lastSet.rpe,
+        notes: clonedNotes
+      })
+      .onConflictDoUpdate({
+        target: [exerciseSets.exerciseLogId, exerciseSets.setNumber],
+        set: {
+          reps: lastSet.reps,
+          weight: lastSet.weight,
+          rpe: lastSet.rpe,
+          notes: clonedNotes
+        }
+      });
+
+    await this.db
+      .update(exerciseLogs)
+      .set({
+        status: "completed",
+        setsCompleted: setNumber,
+        repsCompleted: lastSet.reps?.toString() ?? null,
+        weight: lastSet.weight,
+        rpe: lastSet.rpe,
+        notes: clonedNotes,
+        updatedAt: new Date()
+      })
+      .where(eq(exerciseLogs.id, log.id));
+
+    await this.db.insert(coachEvents).values({
+      userId,
+      workoutId,
+      eventType: "ExerciseLogged",
+      payload: {
+        exerciseName: log.exerciseName,
+        setNumber,
+        reps: lastSet.reps,
+        weight: lastSet.weight,
+        rpe: lastSet.rpe,
+        notes: clonedNotes,
+        source: "same_as_last"
+      }
+    });
+
+    return {
+      exerciseName: log.exerciseName,
+      setNumber,
+      reps: lastSet.reps,
+      weight: lastSet.weight,
+      rpe: lastSet.rpe,
+      notes: clonedNotes
+    };
+  }
+
   async logConditioning(
     userId: string,
     workoutId: string | null,

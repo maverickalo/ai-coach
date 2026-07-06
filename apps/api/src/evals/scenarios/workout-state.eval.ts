@@ -74,6 +74,10 @@ export const workoutStateScenarios: EvalScenario[] = [
       reply: [
         formatLoggedWeight("20", "Cable fly set 1 20lbs on each side x15 RPE 6"),
         formatLoggedWeight("35", "35lb dbs in each hand x 10 RPE 7"),
+        formatLoggedWeight(
+          "5.00",
+          "Next set logged same as last; same as set 2: Set 2 5 lbs each arm. X20 RPE 8"
+        ),
         formatLoggedWeight("145", "Bench Press 145 x 8 RPE 8"),
         buildNextSetRecommendation({
           exerciseName: "Cable Fly",
@@ -110,6 +114,7 @@ export const workoutStateScenarios: EvalScenario[] = [
       replyIncludes: [
         "20 lb/side",
         "35 lb/hand",
+        "5.00 lb/arm",
         "145 lb",
         "25 lb/side",
         "20 lb/arm"

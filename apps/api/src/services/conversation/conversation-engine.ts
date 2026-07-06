@@ -234,6 +234,12 @@ function parseSetPerformance(body: string): {
   };
 }
 
+export function isSameAsLastSetLog(body: string): boolean {
+  return /\b(same as last|same as the last|same weight|repeat last|repeat the last)\b/i.test(
+    body
+  );
+}
+
 export function parseSetOnlyLog(
   body: string,
   exerciseName: string | null,
@@ -400,6 +406,34 @@ export class ConversationEngine {
       } else if (isMissedDayRequest(input.body)) {
         result = await this.handleMissedDayRequest(input.userId);
       } else {
+        const sameAsLastSet =
+          context.currentWorkout && isSameAsLastSetLog(input.body)
+            ? await this.workoutEngine.logSameAsLastSet(
+                input.userId,
+                context.currentWorkout.id,
+                input.body.trim()
+              )
+            : null;
+        if (sameAsLastSet && context.currentWorkout) {
+          await this.workoutEngine.updateWorkoutStatus(
+            context.currentWorkout.id,
+            "in_progress"
+          );
+          const loggedWeight =
+            formatLoggedWeight(sameAsLastSet.weight, sameAsLastSet.notes) ??
+            sameAsLastSet.weight ??
+            "same load";
+          result = {
+            intent: "log_workout",
+            actions: [],
+            reply: [
+              `Logged ${sameAsLastSet.exerciseName} set ${sameAsLastSet.setNumber}: ${loggedWeight}${sameAsLastSet.reps ? ` x ${sameAsLastSet.reps}` : ""}${sameAsLastSet.rpe ? ` @ RPE ${sameAsLastSet.rpe}` : ""}.`,
+              await this.workoutEngine.buildWorkoutStatusUpdate(
+                context.currentWorkout.id
+              )
+            ].join("\n\n")
+          };
+        } else {
         const setOnlyLog = await this.parseSetOnlyLogForCurrentWorkout(
           input.body,
           context.currentWorkout
@@ -471,6 +505,7 @@ export class ConversationEngine {
               )
             };
           }
+        }
         }
         }
       }

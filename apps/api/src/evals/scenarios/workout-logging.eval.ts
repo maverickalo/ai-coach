@@ -1,6 +1,7 @@
 import { CoachEngine } from "../../services/coach/coach-engine.js";
 import {
   deriveWorkoutStatusFromParsedWorkout,
+  isSameAsLastSetLog,
   parseSetOnlyLog
 } from "../../services/conversation/conversation-engine.js";
 import type { OpenAiClient } from "../../services/openai/openai.client.js";
@@ -142,6 +143,22 @@ export const workoutLoggingScenarios: EvalScenario[] = [
     expect: {
       replyIncludes: ["attached next set as set 3"],
       replyExcludes: ["failed", "set=135"]
+    }
+  },
+  {
+    name: "same as last set phrase routes to clone-last-set handler",
+    run: () => ({
+      reply:
+        isSameAsLastSetLog("Next set logged same as last") &&
+        isSameAsLastSetLog("repeat the last") &&
+        !isSameAsLastSetLog("Next set 135 x8 RPE 6")
+          ? "same-as-last detected without stealing normal set logs"
+          : "failed same-as-last detection",
+      actions: []
+    }),
+    expect: {
+      replyIncludes: ["same-as-last detected"],
+      replyExcludes: ["failed"]
     }
   },
   {
