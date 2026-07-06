@@ -23,6 +23,7 @@ import type { CoachEngine } from "../coach/coach-engine.js";
 import type { MemoryEngine } from "../memory/memory-engine.js";
 import type { OpenAiClient } from "../openai/openai.client.js";
 import type { WorkoutEngine } from "../workout/workout-engine.js";
+import { formatLoggedWeight } from "../workout/workout-engine.js";
 import {
   buildModifiedStrengthWorkout,
   buildScopedWorkoutModificationMessage,
@@ -417,7 +418,7 @@ export class ConversationEngine {
             "in_progress"
           );
           const loggedText = exercise
-            ? `Logged ${exercise.exerciseName} set ${exercise.sets}: ${exercise.weight} x ${exercise.reps}${exercise.rpe ? ` @ RPE ${exercise.rpe}` : ""}.`
+            ? `Logged ${exercise.exerciseName} set ${exercise.sets}: ${formatLoggedWeight(exercise.weight === null ? null : String(exercise.weight), exercise.notes) ?? exercise.weight} x ${exercise.reps}${exercise.rpe ? ` @ RPE ${exercise.rpe}` : ""}.`
             : "Logged that set.";
           result = {
             intent: "log_workout",

@@ -1,7 +1,8 @@
 import {
   buildFirstSetTarget,
   buildNextSetRecommendation,
-  buildStatusPlanLine
+  buildStatusPlanLine,
+  formatLoggedWeight
 } from "../../services/workout/workout-engine.js";
 import { pushWorkout } from "../fixtures/coach-context.fixture.js";
 import type { WorkoutState } from "../../types/domain.js";
@@ -65,6 +66,35 @@ export const workoutStateScenarios: EvalScenario[] = [
         "[ ] *Standing Overhead Press*",
         "Use `status`"
       ]
+    }
+  },
+  {
+    name: "status formatting preserves per-side and per-hand load context",
+    run: () => ({
+      reply: [
+        formatLoggedWeight("20", "Cable fly set 1 20lbs on each side x15 RPE 6"),
+        formatLoggedWeight("35", "35lb dbs in each hand x 10 RPE 7"),
+        formatLoggedWeight("145", "Bench Press 145 x 8 RPE 8"),
+        buildNextSetRecommendation({
+          exerciseName: "Cable Fly",
+          prescribedSets: 3,
+          currentSet: 2,
+          loggedSets: [
+            {
+              setNumber: 1,
+              weight: "20",
+              reps: 15,
+              rpe: "6",
+              notes: "Cable fly set 1 20lbs on each side x15 RPE 6"
+            }
+          ]
+        })
+      ].join("\n"),
+      actions: []
+    }),
+    expect: {
+      replyIncludes: ["20 lb/side", "35 lb/hand", "145 lb", "25 lb/side"],
+      replyExcludes: ["20 lb\n35 lb", "145 lb/side"]
     }
   },
   {

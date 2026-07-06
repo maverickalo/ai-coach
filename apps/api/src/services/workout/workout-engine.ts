@@ -27,6 +27,27 @@ export interface LoggedSetSummary {
   reps: number | null;
   weight: string | null;
   rpe: string | null;
+  notes?: string | null;
+}
+
+export function formatLoggedWeight(
+  weight: string | null | undefined,
+  notes?: string | null
+): string | null {
+  if (!weight) {
+    return null;
+  }
+
+  const noteText = notes ?? "";
+  if (/\b(each|per)\s+(side|arm)\b|\bon\s+each\s+side\b/i.test(noteText)) {
+    return `${weight} lb/side`;
+  }
+
+  if (/\b(each|per)\s+hand\b|\bin\s+each\s+hand\b|\bdbs?\b|\bdumbbells?\b/i.test(noteText)) {
+    return `${weight} lb/hand`;
+  }
+
+  return `${weight} lb`;
 }
 
 export function buildNextSetRecommendation(input: {
@@ -47,20 +68,20 @@ export function buildNextSetRecommendation(input: {
     : "the next set";
 
   if (rpe !== null && rpe <= 6 && weight !== null) {
-    return `For ${nextSetText}, add a small jump if bar speed/form stayed clean. Try ${weight + 5} lb, then reassess RPE.`;
+    return `For ${nextSetText}, add a small jump if bar speed/form stayed clean. Try ${formatLoggedWeight(String(weight + 5), lastSet.notes) ?? `${weight + 5} lb`}, then reassess RPE.`;
   }
 
   if (rpe !== null && rpe <= 7 && weight !== null) {
-    return `For ${nextSetText}, you can either stay at ${weight} lb or make a small +5 lb jump if the last set moved cleanly. Keep the next set around RPE 7-8.`;
+    return `For ${nextSetText}, you can either stay at ${formatLoggedWeight(lastSet.weight, lastSet.notes) ?? `${weight} lb`} or make a small +5 lb jump if the last set moved cleanly. Keep the next set around RPE 7-8.`;
   }
 
   if (rpe !== null && rpe <= 8 && weight !== null) {
-    return `For ${nextSetText}, stay at ${weight} lb. RPE 8 is productive, so the goal is matching reps without form slipping.`;
+    return `For ${nextSetText}, stay at ${formatLoggedWeight(lastSet.weight, lastSet.notes) ?? `${weight} lb`}. RPE 8 is productive, so the goal is matching reps without form slipping.`;
   }
 
   if (rpe !== null && rpe >= 9 && weight !== null) {
     const reduced = Math.max(0, Math.round((weight * 0.95) / 5) * 5);
-    return `For ${nextSetText}, take weight off. Try around ${reduced} lb and rest longer; RPE 9+ is too hot to keep forcing across the remaining sets.`;
+    return `For ${nextSetText}, take weight off. Try around ${formatLoggedWeight(String(reduced), lastSet.notes) ?? `${reduced} lb`} and rest longer; RPE 9+ is too hot to keep forcing across the remaining sets.`;
   }
 
   return `For ${nextSetText}, repeat the last weight if form felt clean. If the set felt grindy, reduce slightly and protect reps.`;
@@ -700,12 +721,13 @@ export class WorkoutEngine {
       .limit(1);
 
     const setRows = log
-      ? await this.db
+        ? await this.db
           .select({
             setNumber: exerciseSets.setNumber,
             reps: exerciseSets.reps,
             weight: exerciseSets.weight,
-            rpe: exerciseSets.rpe
+            rpe: exerciseSets.rpe,
+            notes: exerciseSets.notes
           })
           .from(exerciseSets)
           .where(eq(exerciseSets.exerciseLogId, log.id))
@@ -717,7 +739,8 @@ export class WorkoutEngine {
             setNumber: set.setNumber,
             reps: set.reps,
             weight: set.weight,
-            rpe: set.rpe
+            rpe: set.rpe,
+            notes: set.notes
           }))
         : log?.weight || log?.repsCompleted || log?.rpe
           ? [
@@ -728,7 +751,8 @@ export class WorkoutEngine {
                     ? Number(log.repsCompleted)
                     : null,
                 weight: log.weight,
-                rpe: log.rpe
+                rpe: log.rpe,
+                notes: log.notes
               }
             ]
           : [];
@@ -748,7 +772,7 @@ export class WorkoutEngine {
             .map((set) =>
               [
                 `S${set.setNumber}`,
-                set.weight ? `${set.weight} lb` : null,
+                formatLoggedWeight(set.weight, set.notes),
                 set.reps ? `x${set.reps}` : null,
                 set.rpe ? `RPE ${set.rpe}` : null
               ]
@@ -794,7 +818,8 @@ export class WorkoutEngine {
         setsCompleted: exerciseLogs.setsCompleted,
         repsCompleted: exerciseLogs.repsCompleted,
         weight: exerciseLogs.weight,
-        rpe: exerciseLogs.rpe
+        rpe: exerciseLogs.rpe,
+        notes: exerciseLogs.notes
       })
       .from(exerciseLogs)
       .innerJoin(exercises, eq(exerciseLogs.exerciseId, exercises.id))
@@ -820,7 +845,7 @@ export class WorkoutEngine {
         log && log.status !== "skipped"
           ? [
               log.setsCompleted ? `${log.setsCompleted}/${item.prescribedSets ?? "?"} sets` : null,
-              log.weight ? `${log.weight} lb` : null,
+              formatLoggedWeight(log.weight, log.notes),
               log.repsCompleted ? `x${log.repsCompleted}` : null,
               log.rpe ? `RPE ${log.rpe}` : null
             ]
