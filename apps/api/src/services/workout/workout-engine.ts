@@ -140,6 +140,35 @@ export function buildStatusPlanLine(
 }
 
 const weekdayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const weekdayAliases = new Map([
+  ["sun", 0],
+  ["sunday", 0],
+  ["mon", 1],
+  ["monday", 1],
+  ["tue", 2],
+  ["tues", 2],
+  ["tuesday", 2],
+  ["wed", 3],
+  ["wednesday", 3],
+  ["thu", 4],
+  ["thur", 4],
+  ["thurs", 4],
+  ["thursday", 4],
+  ["fri", 5],
+  ["friday", 5],
+  ["sat", 6],
+  ["saturday", 6]
+]);
+
+function detectWeekday(body: string): number | null {
+  const normalized = body.toLowerCase();
+  for (const [alias, day] of weekdayAliases) {
+    if (new RegExp(`\\b${alias}\\b`).test(normalized)) {
+      return day;
+    }
+  }
+  return null;
+}
 
 function detectTrainingFocus(body: string): string | null {
   const normalized = body.toLowerCase();
@@ -172,6 +201,13 @@ function detectMissedTrainingFocus(body: string): string | null {
     /\b(?:missed|skipped|forgot|didn't do|did not do)\b([^.!?]*)/i
   );
   return detectTrainingFocus(missedMatch?.[1] ?? body);
+}
+
+function detectMissedWeekday(body: string): number | null {
+  const missedMatch = body.match(
+    /\b(?:missed|skipped|forgot|didn't do|did not do)\b([^.!?]*)/i
+  );
+  return detectWeekday(missedMatch?.[1] ?? body);
 }
 
 function detectAvailableTrainingFocus(body: string): string | null {
@@ -1583,6 +1619,7 @@ export class WorkoutEngine {
     const timezone = user?.timezone ?? "America/Los_Angeles";
     const today = dateInTimeZone(new Date(), timezone);
     const todayDayOfWeek = dayOfWeekInTimeZone(new Date(), timezone);
+    const missedDayOfWeek = detectMissedWeekday(body);
     const missedFocus = detectMissedTrainingFocus(body);
     const availableFocus = detectAvailableTrainingFocus(body);
     const recent = await this.getRecentWorkouts(userId, 7);
@@ -1602,6 +1639,9 @@ export class WorkoutEngine {
       .where(and(eq(workoutPlans.userId, userId), eq(workoutPlans.active, true)))
       .orderBy(asc(workoutTemplates.dayOfWeek));
     const missedTemplate =
+      (missedDayOfWeek !== null
+        ? templates.find((template) => template.dayOfWeek === missedDayOfWeek)
+        : undefined) ??
       templates.find((template) => templateMatchesFocus(template, missedFocus)) ??
       (missed
         ? templates.find((template) => template.name === missed.name)
@@ -1634,6 +1674,8 @@ export class WorkoutEngine {
     const todayExercises = await topExercises(todayTemplate?.id);
     const requestedFocusLine = availableFocus
       ? `You said you may be able to train *${availableFocus}* today, so option C uses that as the editable focus.`
+      : missedDayOfWeek !== null
+        ? `You named *${weekdayNames[missedDayOfWeek]}*, so I’m using that day’s planned workout as the missed priority.`
       : missedFocus
         ? `You missed *${missedFocus}*. If you want to train something else today, tell me what is available.`
       : "Tell me what you can train today and I’ll bias the rework around that.";
@@ -1648,7 +1690,7 @@ export class WorkoutEngine {
         : "• I do not see the rest of this week's templates.";
 
     const missedLine = missedTemplate
-      ? `Missed priority: *${missedTemplate.name}*${missed ? ` from ${missed.scheduledDate}` : ""}. Main work: ${missedExercises}.`
+      ? `Missed priority: *${missedTemplate.name}*${missedDayOfWeek !== null ? ` (${weekdayNames[missedDayOfWeek]})` : missed ? ` from ${missed.scheduledDate}` : ""}. Main work: ${missedExercises}.`
       : missed
         ? `Missed priority: *${missed.name}* from ${missed.scheduledDate}.`
         : "I do not see a clearly missed workout in the DB, so I’ll give you a safe rework menu.";

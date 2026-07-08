@@ -183,6 +183,9 @@ export function isMissedDayRequest(body: string): boolean {
     /\b(missed|skipped|forgot|didn't do|did not do)\b.*\b(day|workout|yesterday|session|legs?|lower|push|pull|upper|full body)\b/i.test(
       body
     ) ||
+    /\b(missed|skipped|forgot|didn't do|did not do)\b.*\b(mon|monday|tue|tues|tuesday|wed|wednesday|thu|thur|thurs|thursday|fri|friday|sat|saturday|sun|sunday)\b/i.test(
+      body
+    ) ||
     /\b(rework|adjust|shuffle|move around|redo)\b.*\b(plan|schedule|week|workouts?)\b/i.test(
       body
     ) ||

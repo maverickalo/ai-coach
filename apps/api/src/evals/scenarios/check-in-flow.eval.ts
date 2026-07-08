@@ -57,6 +57,7 @@ export const checkInFlowScenarios: EvalScenario[] = [
     run: () => ({
       reply:
         isMissedDayRequest("I missed Legs, can I do upper instead and rework my plan for this week?") &&
+        isMissedDayRequest("I missed Monday can you rework the week?") &&
         isMissedDayRequest("what can I work on today instead?") &&
         isMissedDayRequest("can you shuffle the schedule this week")
           ? "missed-day rework routes to schedule options"
