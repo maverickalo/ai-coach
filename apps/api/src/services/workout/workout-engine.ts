@@ -6,6 +6,7 @@ import {
   exerciseLogs,
   exercises,
   exerciseSets,
+  users,
   workoutPlans,
   workouts,
   workoutTemplateExercises,
@@ -136,6 +137,83 @@ export function buildStatusPlanLine(
   ]
     .filter(Boolean)
     .join(" | ");
+}
+
+const weekdayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+function detectTrainingFocus(body: string): string | null {
+  const normalized = body.toLowerCase();
+  if (/\b(legs?|lower|squat|hinge|deadlift)\b/.test(normalized)) {
+    return "lower";
+  }
+  if (/\b(push|chest|shoulders?|triceps?)\b/.test(normalized)) {
+    return "push";
+  }
+  if (/\b(pull|back|biceps?|rows?)\b/.test(normalized)) {
+    return "pull";
+  }
+  if (/\b(upper)\b/.test(normalized)) {
+    return "upper";
+  }
+  if (/\b(full body|full-body)\b/.test(normalized)) {
+    return "full";
+  }
+  if (/\b(recovery|mobility|walk|easy)\b/.test(normalized)) {
+    return "recovery";
+  }
+  if (/\b(cardio|hyrox|run|row|bike|conditioning)\b/.test(normalized)) {
+    return "conditioning";
+  }
+  return null;
+}
+
+function detectMissedTrainingFocus(body: string): string | null {
+  const missedMatch = body.match(
+    /\b(?:missed|skipped|forgot|didn't do|did not do)\b([^.!?]*)/i
+  );
+  return detectTrainingFocus(missedMatch?.[1] ?? body);
+}
+
+function detectAvailableTrainingFocus(body: string): string | null {
+  const insteadMatch = body.match(
+    /\b(?:can|could|should)?\s*i?\s*(?:do|train|work on)\s+([^.!?]*?)(?:\s+instead|\s+today|\s+this week|$)/i
+  );
+  const optionMatch = body.match(/\bC\s+([^.!?]*)/i);
+  return detectTrainingFocus(optionMatch?.[1] ?? insteadMatch?.[1] ?? "");
+}
+
+function detectReworkOption(body: string): "A" | "B" | "C" | "D" | null {
+  const match = body.trim().match(/^(?:option\s*)?([ABCD])\b/i);
+  return match?.[1] ? (match[1].toUpperCase() as "A" | "B" | "C" | "D") : null;
+}
+
+function templateMatchesFocus(
+  template: { name: string; focus: string | null },
+  focus: string | null
+): boolean {
+  if (!focus) {
+    return false;
+  }
+  const text = `${template.name} ${template.focus ?? ""}`.toLowerCase();
+  if (focus === "lower") {
+    return /\b(lower|legs?|squat|deadlift)\b/.test(text);
+  }
+  if (focus === "push") {
+    return /\b(push|chest|shoulder|triceps?)\b/.test(text);
+  }
+  if (focus === "pull") {
+    return /\b(pull|back|biceps?|posterior)\b/.test(text);
+  }
+  if (focus === "upper") {
+    return /\bupper\b/.test(text);
+  }
+  if (focus === "full") {
+    return /\b(full)\b/.test(text);
+  }
+  if (focus === "recovery") {
+    return /\b(recovery)\b/.test(text);
+  }
+  return false;
 }
 
 export class WorkoutEngine {
@@ -1493,23 +1571,238 @@ export class WorkoutEngine {
     ].join("\n\n");
   }
 
-  async buildMissedDayAdjustmentMessage(userId: string): Promise<string> {
-    const recent = await this.getRecentWorkouts(userId, 5);
+  async buildMissedDayAdjustmentMessage(
+    userId: string,
+    body = ""
+  ): Promise<string> {
+    const [user] = await this.db
+      .select({ timezone: users.timezone })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+    const timezone = user?.timezone ?? "America/Los_Angeles";
+    const today = dateInTimeZone(new Date(), timezone);
+    const todayDayOfWeek = dayOfWeekInTimeZone(new Date(), timezone);
+    const missedFocus = detectMissedTrainingFocus(body);
+    const availableFocus = detectAvailableTrainingFocus(body);
+    const recent = await this.getRecentWorkouts(userId, 7);
     const missed = recent.find((workout) =>
       ["scheduled", "in_progress", "skipped"].includes(workout.status)
     );
+    const templates = await this.db
+      .select({
+        id: workoutTemplates.id,
+        dayOfWeek: workoutTemplates.dayOfWeek,
+        name: workoutTemplates.name,
+        focus: workoutTemplates.focus,
+        estimatedMinutes: workoutTemplates.estimatedMinutes
+      })
+      .from(workoutTemplates)
+      .innerJoin(workoutPlans, eq(workoutTemplates.planId, workoutPlans.id))
+      .where(and(eq(workoutPlans.userId, userId), eq(workoutPlans.active, true)))
+      .orderBy(asc(workoutTemplates.dayOfWeek));
+    const missedTemplate =
+      templates.find((template) => templateMatchesFocus(template, missedFocus)) ??
+      (missed
+        ? templates.find((template) => template.name === missed.name)
+        : undefined);
+    const todayTemplate =
+      templates.find((template) => template.dayOfWeek === todayDayOfWeek) ??
+      templates[0];
+    const upcomingTemplates = templates
+      .map((template) => ({
+        ...template,
+        daysOut: (template.dayOfWeek - todayDayOfWeek + 7) % 7
+      }))
+      .filter((template) => template.daysOut > 0)
+      .sort((a, b) => a.daysOut - b.daysOut)
+      .slice(0, 4);
+    const topExercises = async (templateId: string | undefined) => {
+      if (!templateId) {
+        return "main lift, secondary lift, accessories";
+      }
+      const rows = await this.db
+        .select({ name: exercises.name })
+        .from(workoutTemplateExercises)
+        .innerJoin(exercises, eq(workoutTemplateExercises.exerciseId, exercises.id))
+        .where(eq(workoutTemplateExercises.templateId, templateId))
+        .orderBy(asc(workoutTemplateExercises.sortOrder))
+        .limit(4);
+      return rows.map((row) => row.name).join(", ");
+    };
+    const missedExercises = await topExercises(missedTemplate?.id);
+    const todayExercises = await topExercises(todayTemplate?.id);
+    const requestedFocusLine = availableFocus
+      ? `You said you may be able to train *${availableFocus}* today, so option C uses that as the editable focus.`
+      : missedFocus
+        ? `You missed *${missedFocus}*. If you want to train something else today, tell me what is available.`
+      : "Tell me what you can train today and I’ll bias the rework around that.";
+    const upcomingLine =
+      upcomingTemplates.length > 0
+        ? upcomingTemplates
+            .map(
+              (template) =>
+                `• ${weekdayNames[template.dayOfWeek]}: ${template.name}${template.focus ? ` (${template.focus})` : ""}`
+            )
+            .join("\n")
+        : "• I do not see the rest of this week's templates.";
 
-    if (!missed) {
-      return "I do not see a clearly missed recent workout. For today, follow the posted plan and tell me if you need it short, standard, long, strength, or HYROX.";
-    }
+    const missedLine = missedTemplate
+      ? `Missed priority: *${missedTemplate.name}*${missed ? ` from ${missed.scheduledDate}` : ""}. Main work: ${missedExercises}.`
+      : missed
+        ? `Missed priority: *${missed.name}* from ${missed.scheduledDate}.`
+        : "I do not see a clearly missed workout in the DB, so I’ll give you a safe rework menu.";
 
     return [
-      `Got it. I see the missed/unfinished session: *${missed.name}* from ${missed.scheduledDate}.`,
-      "Do not double up the whole missed day.",
-      "Today: keep the current workout, then carry forward only the most important missed strength movement if it does not hit the same tired joints.",
-      "If legs are beat up, move missed lower-body work to the next lower day and use rower or Assault Bike instead of extra running today.",
-      "Send `short`, `strength`, or `HYROX` and I will format today's exact version."
+      "🗓️ *Rework this week*",
+      missedLine,
+      todayTemplate
+        ? `Today’s source-of-truth workout: *${todayTemplate.name}*. Main work: ${todayExercises}.`
+        : `Today: ${today}.`,
+      requestedFocusLine,
+      "",
+      "*Pick an option*",
+      "A. *Keep today as written.* Do the posted strength session and push the missed day to the next matching slot.",
+      missedTemplate
+        ? `B. *Carry the missed priority into today.* Add only the first 1-2 key lifts from ${missedTemplate.name}; do not double up the whole workout.`
+        : "B. *Carry the missed priority into today.* Tell me which day you missed and I’ll pick the key lifts.",
+      availableFocus
+        ? `C. *Choose your available focus today:* ${availableFocus}. I’ll build a focused version around what you can train and protect sore areas.`
+        : "C. *Choose what you can train today.* Reply with `upper only`, `lower only`, `no legs`, `push`, `pull`, `cardio only`, or your time limit.",
+      "D. *Recovery/short day.* Keep the week moving with mobility/easy conditioning and resume the strength split tomorrow.",
+      "",
+      "*Rest of week currently looks like*",
+      upcomingLine,
+      "",
+      "Reply `A`, `B`, `C upper only`, `C no legs`, or describe what you want to work on. I’ll format the exact session. I will not rewrite the saved schedule until you confirm."
     ].join("\n");
+  }
+
+  async buildScheduleReworkSelectionMessage(
+    userId: string,
+    body: string,
+    currentWorkout: CurrentWorkout | null | undefined
+  ): Promise<string> {
+    const option = detectReworkOption(body);
+    const focus = detectAvailableTrainingFocus(body) ?? detectTrainingFocus(body);
+    const [user] = await this.db
+      .select({ timezone: users.timezone })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+    const timezone = user?.timezone ?? "America/Los_Angeles";
+    const todayDayOfWeek = dayOfWeekInTimeZone(new Date(), timezone);
+    const templates = await this.db
+      .select({
+        id: workoutTemplates.id,
+        dayOfWeek: workoutTemplates.dayOfWeek,
+        name: workoutTemplates.name,
+        focus: workoutTemplates.focus,
+        estimatedMinutes: workoutTemplates.estimatedMinutes
+      })
+      .from(workoutTemplates)
+      .innerJoin(workoutPlans, eq(workoutTemplates.planId, workoutPlans.id))
+      .where(and(eq(workoutPlans.userId, userId), eq(workoutPlans.active, true)))
+      .orderBy(asc(workoutTemplates.dayOfWeek));
+    const todayTemplate =
+      templates.find((template) => template.dayOfWeek === todayDayOfWeek) ??
+      templates[0];
+    const selectedTemplate =
+      (focus ? templates.find((template) => templateMatchesFocus(template, focus)) : null) ??
+      todayTemplate;
+    const missedLowerTemplate =
+      templates.find((template) => templateMatchesFocus(template, "lower")) ??
+      templates.find((template) => /lower|leg/i.test(template.name));
+    const templateExercises = async (templateId: string | undefined, limit = 6) => {
+      if (!templateId) {
+        return [];
+      }
+      return this.db
+        .select({
+          name: exercises.name,
+          sets: workoutTemplateExercises.prescribedSets,
+          reps: workoutTemplateExercises.prescribedReps
+        })
+        .from(workoutTemplateExercises)
+        .innerJoin(exercises, eq(workoutTemplateExercises.exerciseId, exercises.id))
+        .where(eq(workoutTemplateExercises.templateId, templateId))
+        .orderBy(asc(workoutTemplateExercises.sortOrder))
+        .limit(limit);
+    };
+    const formatExercises = (
+      rows: Awaited<ReturnType<typeof templateExercises>>
+    ) =>
+      rows
+        .map((row, index) => `${index + 1}. *${row.name}* - ${row.sets ?? "?"}x${row.reps ?? "?"}`)
+        .join("\n");
+
+    if (option === "D" || focus === "recovery") {
+      return [
+        "🧭 *Reworked plan: Recovery / short day*",
+        "Use this when you missed a day but recovery or schedule is the limiter.",
+        "1. 20-40 min easy walk, bike, or row",
+        "2. 10 min hips, hamstrings, calves, T-spine",
+        "3. Optional core: Pallof press 3x15/side + dead bug 3x10/side",
+        "No strength progression today. Resume the strength split tomorrow."
+      ].join("\n");
+    }
+
+    if (option === "B") {
+      const todayRows = currentWorkout
+        ? currentWorkout.exercises
+            .filter((item) => item.notes !== "Warm-up")
+            .slice(0, 4)
+            .map((item) => ({
+              name: item.exercise.name,
+              sets: item.prescribedSets,
+              reps: item.prescribedReps
+            }))
+        : await templateExercises(todayTemplate?.id, 4);
+      const carryRows = await templateExercises(missedLowerTemplate?.id, 2);
+      return [
+        "🧭 *Reworked plan: Carry missed priority*",
+        "Strength stays the source of truth. Do not double up the whole missed day.",
+        "*Today’s base*",
+        formatExercises(todayRows),
+        carryRows.length > 0
+          ? ["*Carry-over add-on*", formatExercises(carryRows)].join("\n")
+          : "*Carry-over add-on*\nTell me which missed lift matters most and I’ll place it.",
+        "Keep carry-over sets at RPE 6-7. If joints feel beat up, skip the add-on and push it to the next matching day."
+      ].join("\n\n");
+    }
+
+    if (option === "A") {
+      const rows = currentWorkout
+        ? currentWorkout.exercises
+            .filter((item) => item.notes !== "Warm-up")
+            .slice(0, 8)
+            .map((item) => ({
+              name: item.exercise.name,
+              sets: item.prescribedSets,
+              reps: item.prescribedReps
+            }))
+        : await templateExercises(todayTemplate?.id, 8);
+      return [
+        "🧭 *Reworked plan: Keep today as written*",
+        "Do today’s source-of-truth strength session. Move the missed day to the next matching slot instead of cramming it in.",
+        formatExercises(rows),
+        "Reply `starting now` when you begin, or say `C upper only` / `C no legs` if you want a different focus."
+      ].join("\n\n");
+    }
+
+    const rows = await templateExercises(selectedTemplate?.id, 7);
+    const focusLabel = focus ?? selectedTemplate?.name ?? "available focus";
+    return [
+      `🧭 *Reworked plan: ${focusLabel}*`,
+      selectedTemplate
+        ? `Using *${selectedTemplate.name}* as the closest match.`
+        : "Using your available focus and keeping the work strength-first.",
+      formatExercises(rows),
+      focus === "conditioning"
+        ? "Conditioning stays optional. If this is cardio-only, keep it easy/moderate and do not try to replace the missed strength work with a max-effort circuit."
+        : "Keep this as a strength session. Missed lower work can move to the next lower/full-body slot.",
+      "Send logs set-by-set or say `workout status` any time."
+    ].join("\n\n");
   }
 
   async getWeeklyData(userId: string, weekStart: string, weekEnd: string) {

@@ -178,8 +178,28 @@ export function getRequestedSessionShape(
   return null;
 }
 
-function isMissedDayRequest(body: string): boolean {
-  return /\b(missed|skipped|forgot|didn't do|did not do)\b.*\b(day|workout|yesterday|session)\b/i.test(body);
+export function isMissedDayRequest(body: string): boolean {
+  return (
+    /\b(missed|skipped|forgot|didn't do|did not do)\b.*\b(day|workout|yesterday|session|legs?|lower|push|pull|upper|full body)\b/i.test(
+      body
+    ) ||
+    /\b(rework|adjust|shuffle|move around|redo)\b.*\b(plan|schedule|week|workouts?)\b/i.test(
+      body
+    ) ||
+    /\b(can|could|should)\s+i\s+(do|train|work on)\b.*\b(instead|today|this week)\b/i.test(
+      body
+    )
+  );
+}
+
+export function isScheduleReworkSelection(body: string): boolean {
+  const normalized = body.trim();
+  return (
+    /^(option\s*)?[ABCD]\b/i.test(normalized) ||
+    /\b(upper only|lower only|no legs|no upper|push only|pull only|cardio only|recovery only)\b/i.test(
+      normalized
+    )
+  );
 }
 
 export function isCurrentExerciseSkipRequest(body: string): boolean {
@@ -417,7 +437,13 @@ export class ConversationEngine {
       } else if (getRequestedSessionShape(input.body)) {
         result = await this.handleSessionShapeRequest(input.body, context);
       } else if (isMissedDayRequest(input.body)) {
-        result = await this.handleMissedDayRequest(input.userId);
+        result = await this.handleMissedDayRequest(input.userId, input.body);
+      } else if (isScheduleReworkSelection(input.body)) {
+        result = await this.handleScheduleReworkSelection(
+          input.userId,
+          input.body,
+          context
+        );
       } else {
         const sameAsLastSet =
           context.currentWorkout && isSameAsLastSetLog(input.body)
@@ -965,7 +991,10 @@ export class ConversationEngine {
     };
   }
 
-  private async handleMissedDayRequest(userId: string): Promise<CoachResult> {
+  private async handleMissedDayRequest(
+    userId: string,
+    body: string
+  ): Promise<CoachResult> {
     await this.db.insert(coachEvents).values({
       userId,
       workoutId: null,
@@ -979,7 +1008,34 @@ export class ConversationEngine {
     return {
       intent: "schedule_change",
       actions: [],
-      reply: await this.workoutEngine.buildMissedDayAdjustmentMessage(userId)
+      reply: await this.workoutEngine.buildMissedDayAdjustmentMessage(userId, body)
+    };
+  }
+
+  private async handleScheduleReworkSelection(
+    userId: string,
+    body: string,
+    context: Awaited<ReturnType<CoachContextBuilder["build"]>>
+  ): Promise<CoachResult> {
+    await this.db.insert(coachEvents).values({
+      userId,
+      workoutId: context.currentWorkout?.id ?? null,
+      eventType: "WorkoutPlanAdjusted",
+      payload: {
+        reason: "schedule_rework_selection",
+        selection: body.trim(),
+        source: "conversation"
+      }
+    });
+
+    return {
+      intent: "schedule_change",
+      actions: [],
+      reply: await this.workoutEngine.buildScheduleReworkSelectionMessage(
+        userId,
+        body,
+        context.currentWorkout
+      )
     };
   }
 

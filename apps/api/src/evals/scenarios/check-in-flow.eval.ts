@@ -1,6 +1,8 @@
 import {
   isCurrentExerciseSkipRequest,
   isDailyWorkoutFormatRequest,
+  isMissedDayRequest,
+  isScheduleReworkSelection,
   isWorkoutStartMessage
 } from "../../services/conversation/conversation-engine.js";
 import { buildModifiedStrengthWorkout } from "../../services/workout/workout-variation-library.js";
@@ -48,6 +50,38 @@ export const checkInFlowScenarios: EvalScenario[] = [
     expect: {
       replyIncludes: ["send full daily workout format"],
       replyExcludes: ["Start with Bench Press"]
+    }
+  },
+  {
+    name: "missed day rework catches focus and choose-work prompts",
+    run: () => ({
+      reply:
+        isMissedDayRequest("I missed Legs, can I do upper instead and rework my plan for this week?") &&
+        isMissedDayRequest("what can I work on today instead?") &&
+        isMissedDayRequest("can you shuffle the schedule this week")
+          ? "missed-day rework routes to schedule options"
+          : "missed-day rework was missed",
+      actions: []
+    }),
+    expect: {
+      replyIncludes: ["routes to schedule options"],
+      replyExcludes: ["was missed"]
+    }
+  },
+  {
+    name: "schedule rework option replies route to exact formatting",
+    run: () => ({
+      reply:
+        isScheduleReworkSelection("C upper only") &&
+        isScheduleReworkSelection("no legs today") &&
+        isScheduleReworkSelection("option B")
+          ? "schedule option can format exact session"
+          : "schedule option was missed",
+      actions: []
+    }),
+    expect: {
+      replyIncludes: ["format exact session"],
+      replyExcludes: ["was missed"]
     }
   },
   {
