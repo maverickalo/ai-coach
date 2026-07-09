@@ -1959,6 +1959,11 @@ export class WorkoutEngine {
     userId: string,
     displayName: string | null
   ): Promise<string | null> {
+    const workout = await this.getLatestReworkWorkout(userId);
+    return workout ? this.buildDailyWorkoutMessage(displayName, workout) : null;
+  }
+
+  async getLatestReworkWorkout(userId: string): Promise<CurrentWorkout | null> {
     const [event] = await this.db
       .select({ payload: coachEvents.payload })
       .from(coachEvents)
@@ -1980,17 +1985,65 @@ export class WorkoutEngine {
       .from(users)
       .where(eq(users.id, userId))
       .limit(1);
-    const workout = await this.getWorkoutFromTemplate(
+    return this.getWorkoutFromTemplate(
       userId,
       templateId,
       dateInTimeZone(new Date(), user?.timezone ?? "America/Los_Angeles"),
       "reworked"
     );
-    if (!workout) {
+  }
+
+  async startLatestReworkForToday(userId: string): Promise<CurrentWorkout | null> {
+    const [event] = await this.db
+      .select({ payload: coachEvents.payload })
+      .from(coachEvents)
+      .where(
+        and(
+          eq(coachEvents.userId, userId),
+          eq(coachEvents.eventType, "WorkoutPlanAdjusted")
+        )
+      )
+      .orderBy(desc(coachEvents.createdAt))
+      .limit(1);
+    const templateId = event?.payload.selectedTemplateId;
+    if (typeof templateId !== "string") {
       return null;
     }
 
-    return this.buildDailyWorkoutMessage(displayName, workout);
+    const [user] = await this.db
+      .select({ timezone: users.timezone })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+    const scheduledDate = dateInTimeZone(
+      new Date(),
+      user?.timezone ?? "America/Los_Angeles"
+    );
+    const existing = await this.getWorkoutByDate(userId, scheduledDate);
+
+    if (existing && !existing.id.startsWith("template:")) {
+      await this.db
+        .update(workouts)
+        .set({
+          templateId,
+          status: "in_progress",
+          startedAt: new Date(),
+          completedAt: null,
+          updatedAt: new Date()
+        })
+        .where(eq(workouts.id, existing.id));
+      return this.getWorkoutByDate(userId, scheduledDate);
+    }
+
+    await this.db.insert(workouts).values({
+      userId,
+      templateId,
+      scheduledDate,
+      status: "in_progress",
+      startedAt: new Date()
+    });
+
+    return this.getWorkoutByDate(userId, scheduledDate);
   }
 
   async getWeeklyData(userId: string, weekStart: string, weekEnd: string) {

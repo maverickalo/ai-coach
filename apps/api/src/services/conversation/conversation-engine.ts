@@ -652,7 +652,10 @@ export class ConversationEngine {
     userId: string,
     context: Awaited<ReturnType<CoachContextBuilder["build"]>>
   ): Promise<CoachResult> {
-    if (!context.currentWorkout) {
+    const reworkedWorkout = await this.workoutEngine.startLatestReworkForToday(userId);
+    const workout = reworkedWorkout ?? context.currentWorkout;
+
+    if (!workout) {
       return {
         intent: "general_chat",
         actions: [],
@@ -661,13 +664,10 @@ export class ConversationEngine {
       };
     }
 
-    await this.workoutEngine.updateWorkoutStatus(
-      context.currentWorkout.id,
-      "in_progress"
-    );
+    await this.workoutEngine.updateWorkoutStatus(workout.id, "in_progress");
     await this.db.insert(coachEvents).values({
       userId,
-      workoutId: context.currentWorkout.id,
+      workoutId: workout.id,
       eventType: "WorkoutStarted",
       payload: {
         source: "conversation",
@@ -678,7 +678,7 @@ export class ConversationEngine {
       }
     });
 
-    const firstMainExercise = context.currentWorkout.exercises.find(
+    const firstMainExercise = workout.exercises.find(
       (item) => item.notes !== "Warm-up"
     );
 
