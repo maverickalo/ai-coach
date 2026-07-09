@@ -61,7 +61,7 @@ export function isWorkoutStartMessage(body: string): boolean {
 export function isDailyWorkoutFormatRequest(body: string): boolean {
   const normalized = body.trim().toLowerCase();
   return (
-    /\b(send|show|give|format|post)\b.*\b(complete|full|morning|start of (the )?day|daily|fresh for the day|workout)\b/.test(
+    /\b(send|show|give|format|post)\b.*\b(complete|full|summary|morning|start of (the )?day|daily|fresh for the day|workout)\b/.test(
       normalized
     ) ||
     /\bif you were sending it to me to start the day\b/.test(normalized) ||
@@ -199,6 +199,9 @@ export function isScheduleReworkSelection(body: string): boolean {
   const normalized = body.trim();
   return (
     /^(option\s*)?[ABCD]\b/i.test(normalized) ||
+    /\b(let'?s|lets|we'?ll|we will|use|do)\b.*\b(lower volume|upper volume|lower body|full body|push|pull|recovery)\b/i.test(
+      normalized
+    ) ||
     /\b(upper only|lower only|no legs|no upper|push only|pull only|cardio only|recovery only)\b/i.test(
       normalized
     )
@@ -428,7 +431,7 @@ export class ConversationEngine {
       } else if (isCurrentExerciseSkipRequest(input.body)) {
         result = await this.handleCurrentExerciseSkipped(input.userId, context);
       } else if (isDailyWorkoutFormatRequest(input.body)) {
-        result = this.handleDailyWorkoutFormatRequest(context);
+        result = await this.handleDailyWorkoutFormatRequest(input.userId, input.body, context);
       } else if (isScopedWorkoutModificationRequest(input.body)) {
         result = this.handleScopedWorkoutModification(input.body, context);
       } else if (isWorkoutMediaRequest(input.body)) {
@@ -1020,17 +1023,6 @@ export class ConversationEngine {
     body: string,
     context: Awaited<ReturnType<CoachContextBuilder["build"]>>
   ): Promise<CoachResult> {
-    await this.db.insert(coachEvents).values({
-      userId,
-      workoutId: context.currentWorkout?.id ?? null,
-      eventType: "WorkoutPlanAdjusted",
-      payload: {
-        reason: "schedule_rework_selection",
-        selection: body.trim(),
-        source: "conversation"
-      }
-    });
-
     return {
       intent: "schedule_change",
       actions: [],
@@ -1111,14 +1103,28 @@ export class ConversationEngine {
     };
   }
 
-  private handleDailyWorkoutFormatRequest(
+  private async handleDailyWorkoutFormatRequest(
+    userId: string,
+    body: string,
     context: Awaited<ReturnType<CoachContextBuilder["build"]>>
-  ): CoachResult {
+  ): Promise<CoachResult> {
     if (!context.currentWorkout) {
       return {
         intent: "schedule_change",
         actions: [],
         reply: "I do not see today's workout yet."
+      };
+    }
+
+    const latestRework = await this.workoutEngine.buildLatestReworkDailyWorkoutMessage(
+      userId,
+      context.user.displayName
+    );
+    if (latestRework && /\b(summary|full|complete)\b/i.test(body)) {
+      return {
+        intent: "schedule_change",
+        actions: [],
+        reply: latestRework
       };
     }
 

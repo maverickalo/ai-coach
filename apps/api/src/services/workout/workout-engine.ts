@@ -223,6 +223,15 @@ function detectReworkOption(body: string): "A" | "B" | "C" | "D" | null {
   return match?.[1] ? (match[1].toUpperCase() as "A" | "B" | "C" | "D") : null;
 }
 
+function templateNameIsRequested(
+  template: { name: string },
+  body: string
+): boolean {
+  const normalized = body.toLowerCase();
+  const name = template.name.toLowerCase();
+  return normalized.includes(name) || normalized.includes(name.replace(/\s+/g, " "));
+}
+
 function templateMatchesFocus(
   template: { name: string; focus: string | null },
   focus: string | null
@@ -802,6 +811,86 @@ export class WorkoutEngine {
     }
 
     return this.getWorkoutByDate(workout.userId, workout.scheduledDate);
+  }
+
+  async getWorkoutFromTemplate(
+    userId: string,
+    templateId: string,
+    scheduledDate: string,
+    status = "scheduled"
+  ): Promise<CurrentWorkout | null> {
+    const [row] = await this.db
+      .select({
+        id: workoutTemplates.id,
+        name: workoutTemplates.name,
+        focus: workoutTemplates.focus,
+        estimatedMinutes: workoutTemplates.estimatedMinutes
+      })
+      .from(workoutTemplates)
+      .where(eq(workoutTemplates.id, templateId))
+      .limit(1);
+
+    if (!row) {
+      return null;
+    }
+
+    const prescribed = await this.db
+      .select({
+        templateExerciseId: workoutTemplateExercises.id,
+        sortOrder: workoutTemplateExercises.sortOrder,
+        prescribedSets: workoutTemplateExercises.prescribedSets,
+        prescribedReps: workoutTemplateExercises.prescribedReps,
+        prescribedWeight: workoutTemplateExercises.prescribedWeight,
+        notes: workoutTemplateExercises.notes,
+        exerciseId: exercises.id,
+        exerciseName: exercises.name,
+        category: exercises.category,
+        primaryMuscles: exercises.primaryMuscles,
+        equipment: exercises.equipment,
+        instructions: exercises.instructions,
+        commonSubstitutions: exercises.commonSubstitutions
+      })
+      .from(workoutTemplateExercises)
+      .innerJoin(exercises, eq(workoutTemplateExercises.exerciseId, exercises.id))
+      .where(eq(workoutTemplateExercises.templateId, templateId))
+      .orderBy(asc(workoutTemplateExercises.sortOrder));
+
+    const items = await Promise.all(
+      prescribed.map(async (item) => ({
+        templateExerciseId: item.templateExerciseId,
+        sortOrder: item.sortOrder,
+        prescribedSets: item.prescribedSets,
+        prescribedReps: item.prescribedReps,
+        prescribedWeight: item.prescribedWeight,
+        notes: item.notes,
+        lastPerformance: await this.getLastExercisePerformance(
+          userId,
+          item.exerciseName
+        ),
+        exercise: {
+          id: item.exerciseId,
+          name: item.exerciseName,
+          category: item.category,
+          primaryMuscles: item.primaryMuscles,
+          equipment: item.equipment,
+          instructions: item.instructions,
+          commonSubstitutions: item.commonSubstitutions,
+          ...exerciseResource(item.exerciseName)
+        }
+      }))
+    );
+    const recentTraining = await this.getRecentTrainingSignals(userId, 7);
+
+    return {
+      id: `template:${templateId}`,
+      name: row.name,
+      focus: row.focus,
+      estimatedMinutes: row.estimatedMinutes,
+      scheduledDate,
+      status,
+      exercises: items,
+      conditioning: recommendConditioning(recentTraining)
+    };
   }
 
   async getLoggedExerciseNames(workoutId: string): Promise<string[]> {
@@ -1750,6 +1839,7 @@ export class WorkoutEngine {
       templates.find((template) => template.dayOfWeek === todayDayOfWeek) ??
       templates[0];
     const selectedTemplate =
+      templates.find((template) => templateNameIsRequested(template, body)) ??
       (focus ? templates.find((template) => templateMatchesFocus(template, focus)) : null) ??
       todayTemplate;
     const missedLowerTemplate =
@@ -1777,8 +1867,23 @@ export class WorkoutEngine {
       rows
         .map((row, index) => `${index + 1}. *${row.name}* - ${row.sets ?? "?"}x${row.reps ?? "?"}`)
         .join("\n");
+    const recordSelection = async (template: typeof selectedTemplate | undefined | null) => {
+      await this.db.insert(coachEvents).values({
+        userId,
+        workoutId: currentWorkout?.id?.startsWith("template:") ? null : currentWorkout?.id ?? null,
+        eventType: "WorkoutPlanAdjusted",
+        payload: {
+          reason: "schedule_rework_selection",
+          selection: body.trim(),
+          selectedTemplateId: template?.id ?? null,
+          selectedTemplateName: template?.name ?? null,
+          source: "conversation"
+        }
+      });
+    };
 
     if (option === "D" || focus === "recovery") {
+      await recordSelection(null);
       return [
         "🧭 *Reworked plan: Recovery / short day*",
         "Use this when you missed a day but recovery or schedule is the limiter.",
@@ -1790,6 +1895,7 @@ export class WorkoutEngine {
     }
 
     if (option === "B") {
+      await recordSelection(missedLowerTemplate ?? todayTemplate);
       const todayRows = currentWorkout
         ? currentWorkout.exercises
             .filter((item) => item.notes !== "Warm-up")
@@ -1814,6 +1920,7 @@ export class WorkoutEngine {
     }
 
     if (option === "A") {
+      await recordSelection(todayTemplate);
       const rows = currentWorkout
         ? currentWorkout.exercises
             .filter((item) => item.notes !== "Warm-up")
@@ -1832,6 +1939,7 @@ export class WorkoutEngine {
       ].join("\n\n");
     }
 
+    await recordSelection(selectedTemplate);
     const rows = await templateExercises(selectedTemplate?.id, 7);
     const focusLabel = focus ?? selectedTemplate?.name ?? "available focus";
     return [
@@ -1845,6 +1953,44 @@ export class WorkoutEngine {
         : "Keep this as a strength session. Missed lower work can move to the next lower/full-body slot.",
       "Send logs set-by-set or say `workout status` any time."
     ].join("\n\n");
+  }
+
+  async buildLatestReworkDailyWorkoutMessage(
+    userId: string,
+    displayName: string | null
+  ): Promise<string | null> {
+    const [event] = await this.db
+      .select({ payload: coachEvents.payload })
+      .from(coachEvents)
+      .where(
+        and(
+          eq(coachEvents.userId, userId),
+          eq(coachEvents.eventType, "WorkoutPlanAdjusted")
+        )
+      )
+      .orderBy(desc(coachEvents.createdAt))
+      .limit(1);
+    const templateId = event?.payload.selectedTemplateId;
+    if (typeof templateId !== "string") {
+      return null;
+    }
+
+    const [user] = await this.db
+      .select({ timezone: users.timezone })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+    const workout = await this.getWorkoutFromTemplate(
+      userId,
+      templateId,
+      dateInTimeZone(new Date(), user?.timezone ?? "America/Los_Angeles"),
+      "reworked"
+    );
+    if (!workout) {
+      return null;
+    }
+
+    return this.buildDailyWorkoutMessage(displayName, workout);
   }
 
   async getWeeklyData(userId: string, weekStart: string, weekEnd: string) {
